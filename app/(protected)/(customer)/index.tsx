@@ -218,7 +218,10 @@ export default function CustomerDashboard() {
     };
 
     return (
-        <SafeAreaContainer style={styles.safeRoot}>
+        <SafeAreaContainer
+            style={styles.safeRoot}
+            showBottomNav
+        >
             {/* HEADER */}
 
             <View style={styles.header}>
@@ -254,8 +257,8 @@ export default function CustomerDashboard() {
                     <Text style={styles.avatarText}>
                         {user?.fullName
                             ? getInitials(
-                                  user.fullName
-                              )
+                                user.fullName
+                            )
                             : 'U'}
                     </Text>
                 </TouchableOpacity>
@@ -391,7 +394,7 @@ export default function CustomerDashboard() {
                         </Text>
 
                         {requests.length >
-                        0 ? (
+                            0 ? (
                             <TouchableOpacity
                                 onPress={() =>
                                     router.push(
@@ -423,7 +426,7 @@ export default function CustomerDashboard() {
                             />
                         </View>
                     ) : requests.length ===
-                      0 ? (
+                        0 ? (
                         <View
                             style={
                                 styles.emptyState

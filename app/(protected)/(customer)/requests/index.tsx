@@ -237,7 +237,7 @@ export default function MyRequests() {
     }
 
     return (
-        <SafeAreaContainer>
+        <SafeAreaContainer showBottomNav>
             <PageTitle
                 title="My Requests"
                 subtitle="View and manage all your service requests"

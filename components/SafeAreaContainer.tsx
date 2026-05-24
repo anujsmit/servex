@@ -1,29 +1,90 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, ViewStyle, Platform } from 'react-native';
+
+import {
+    StyleSheet,
+    View,
+    ViewStyle,
+    Platform,
+} from 'react-native';
+
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar, setStatusBarBackgroundColor, setStatusBarTranslucent } from 'expo-status-bar';
+
+import {
+    StatusBar,
+    setStatusBarBackgroundColor,
+    setStatusBarTranslucent,
+} from 'expo-status-bar';
+
 import * as SystemUI from 'expo-system-ui';
+
+import CustomBottomNavbar from './CustomBottomNavbarCustomer';
 
 interface SafeAreaContainerProps {
     children: React.ReactNode;
+
     style?: ViewStyle;
+
+    showBottomNav?: boolean;
 }
 
 const STATUS_BG = '#ffffff';
 
-export function SafeAreaContainer({ children, style }: SafeAreaContainerProps) {
+export function SafeAreaContainer({
+    children,
+    style,
+    showBottomNav = false,
+}: SafeAreaContainerProps) {
     useEffect(() => {
-        void SystemUI.setBackgroundColorAsync(STATUS_BG);
+        void SystemUI.setBackgroundColorAsync(
+            STATUS_BG
+        );
+
         if (Platform.OS === 'android') {
             setStatusBarTranslucent(false);
-            setStatusBarBackgroundColor(STATUS_BG);
+
+            setStatusBarBackgroundColor(
+                STATUS_BG
+            );
         }
     }, []);
 
     return (
-        <SafeAreaView style={[styles.container, style]} edges={['right', 'left', 'top']}>
-            <StatusBar style="dark" backgroundColor={STATUS_BG} translucent={Platform.OS === 'android' ? false : undefined} />
-            {children}
+        <SafeAreaView
+            style={[
+                styles.container,
+                style,
+            ]}
+            edges={[
+                'right',
+                'left',
+                'top',
+            ]}
+        >
+            <StatusBar
+                style="dark"
+                backgroundColor={STATUS_BG}
+                translucent={
+                    Platform.OS ===
+                    'android'
+                        ? false
+                        : undefined
+                }
+            />
+
+            <View
+                style={[
+                    styles.content,
+
+                    showBottomNav &&
+                        styles.withBottomNav,
+                ]}
+            >
+                {children}
+            </View>
+
+            {showBottomNav && (
+                <CustomBottomNavbar />
+            )}
         </SafeAreaView>
     );
 }
@@ -31,6 +92,15 @@ export function SafeAreaContainer({ children, style }: SafeAreaContainerProps) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+
         backgroundColor: STATUS_BG,
+    },
+
+    content: {
+        flex: 1,
+    },
+
+    withBottomNav: {
+        paddingBottom: 95,
     },
 });
