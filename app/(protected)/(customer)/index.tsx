@@ -1,4 +1,10 @@
-import React, { useMemo, useCallback } from 'react';
+import React, {
+    useMemo,
+    useCallback,
+    useEffect,
+    useState,
+} from 'react';
+
 import {
     View,
     Text,
@@ -7,23 +13,49 @@ import {
     TouchableOpacity,
     ActivityIndicator,
 } from 'react-native';
+
 import { SafeAreaContainer } from '../../../components/SafeAreaContainer';
+
 import {
     customerBrand as B,
     customerDashboardColors as C,
     customerDashboardElevation as ELEV,
 } from '../../../lib/customerDashboardTokens';
+
 import { useAuth } from '../../../context/AuthContext';
+
 import { useLocation } from '../../../context/LocationContext';
+
 import { useRouter } from 'expo-router';
+
 import { MaterialIcons } from '@expo/vector-icons';
+
 import { useCustomerRequestsQuery } from '../../../hooks/queries';
+
 import { HeroBanner } from '../../../components/HeroBanner';
+
+interface Service {
+    id: number;
+    service_name: string;
+    description?: string;
+}
 
 export default function CustomerDashboard() {
     const { user } = useAuth();
-    const { address, isLoading: locationLoading } = useLocation();
+
+    const {
+        address,
+        isLoading: locationLoading,
+    } = useLocation();
+
     const router = useRouter();
+
+    const [services, setServices] = useState<
+        Service[]
+    >([]);
+
+    const [servicesLoading, setServicesLoading] =
+        useState(true);
 
     const brandStyles = useMemo(
         () => ({
@@ -31,122 +63,348 @@ export default function CustomerDashboard() {
                 backgroundColor: B.accent,
                 boxShadow: `0 6px 18px rgba(${B.accentRgb}, 0.28), 0 2px 6px rgba(15, 23, 42, 0.06)`,
             },
-            accentSoftFill: { backgroundColor: B.accentSoft },
-            seeAll: { color: B.accent },
+
+            accentSoftFill: {
+                backgroundColor: B.accentSoft,
+            },
+
+            seeAll: {
+                color: B.accent,
+            },
         }),
         []
     );
 
-    // Fetch customer's recent requests
-    const { data: requests = [], isLoading: requestsLoading } = useCustomerRequestsQuery();
+    const {
+        data: requests = [],
+        isLoading: requestsLoading,
+    } = useCustomerRequestsQuery();
+
+    useEffect(() => {
+        fetchServices();
+    }, []);
+
+    const fetchServices = async () => {
+        try {
+            setServicesLoading(true);
+
+            const response = await fetch(
+                `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/services`
+            );
+
+            const data = await response.json();
+
+            console.log('SERVICES:', data);
+
+            if (response.ok) {
+                if (Array.isArray(data)) {
+                    setServices(data);
+                } else if (
+                    Array.isArray(data.services)
+                ) {
+                    setServices(data.services);
+                } else if (
+                    Array.isArray(data.data)
+                ) {
+                    setServices(data.data);
+                } else {
+                    setServices([]);
+                }
+            }
+        } catch (error) {
+            console.log(
+                'Failed to fetch services:',
+                error
+            );
+
+            setServices([]);
+        } finally {
+            setServicesLoading(false);
+        }
+    };
 
     const getInitials = (name: string) => {
         return name
             .split(' ')
-            .map(n => n[0])
+            .map((n) => n[0])
             .join('')
             .toUpperCase()
             .substring(0, 2);
     };
 
-    const getStatusStyle = useCallback((status: string) => {
-        switch (status) {
-            case 'pending':
-                return { backgroundColor: '#fef3c7', color: '#d97706' };
-            case 'assigned':
-                return { backgroundColor: '#dbeafe', color: B.accent };
-            case 'completed':
-                return { backgroundColor: '#d1fae5', color: '#059669' };
-            case 'canceled':
-                return { backgroundColor: '#fee2e2', color: '#dc2626' };
-            default:
-                return { backgroundColor: '#f3f4f6', color: '#6b7280' };
-        }
-    }, []);
+    const getServiceIcon = (
+        serviceName: string
+    ) => {
+        const name =
+            serviceName?.toLowerCase() || '';
 
-    const quickActions = useMemo(
-        () => [
-            {
-                id: 1,
-                title: 'Book a Service',
-                subtitle: 'Find skilled mistris near you',
-                icon: 'build' as const,
-                onPress: () => router.push('/service-request'),
-            },
-            {
-                id: 2,
-                title: 'My Bookings',
-                subtitle: 'Track your service requests',
-                icon: 'event' as const,
-                onPress: () => router.push('/(protected)/(customer)/requests'),
-            },
-        ],
-        [router]
+        if (name.includes('electric')) {
+            return 'electrical-services';
+        }
+
+        if (name.includes('plumb')) {
+            return 'plumbing';
+        }
+
+        if (name.includes('paint')) {
+            return 'format-paint';
+        }
+
+        if (name.includes('clean')) {
+            return 'cleaning-services';
+        }
+
+        if (name.includes('carpent')) {
+            return 'handyman';
+        }
+
+        if (name.includes('ac')) {
+            return 'ac-unit';
+        }
+
+        return 'build';
+    };
+
+    const getStatusStyle = useCallback(
+        (status: string) => {
+            switch (status) {
+                case 'pending':
+                    return {
+                        backgroundColor: '#fef3c7',
+                        color: '#d97706',
+                    };
+
+                case 'assigned':
+                    return {
+                        backgroundColor: '#dbeafe',
+                        color: B.accent,
+                    };
+
+                case 'completed':
+                    return {
+                        backgroundColor: '#d1fae5',
+                        color: '#059669',
+                    };
+
+                case 'canceled':
+                    return {
+                        backgroundColor: '#fee2e2',
+                        color: '#dc2626',
+                    };
+
+                default:
+                    return {
+                        backgroundColor: '#f3f4f6',
+                        color: '#6b7280',
+                    };
+            }
+        },
+        []
     );
+
+    const openServiceCategory = (
+        service: Service
+    ) => {
+        router.push({
+            pathname: '/services/[id]',
+
+            params: {
+                id: service.id.toString(),
+
+                serviceName:
+                    service.serviceName,
+            },
+        });
+    };
 
     return (
         <SafeAreaContainer style={styles.safeRoot}>
+            {/* HEADER */}
+
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
-                    <Text style={styles.greeting} selectable>
-                        {user?.fullName || 'Customer'}
+                    <Text style={styles.greeting}>
+                        Hello,{' '}
+                        {user?.fullName ||
+                            'Customer'}
                     </Text>
-                    <Text style={styles.subtitle} numberOfLines={1} selectable>
-                        {locationLoading ? 'Detecting location...' : address}
+
+                    <Text
+                        style={styles.subtitle}
+                        numberOfLines={1}
+                    >
+                        {locationLoading
+                            ? 'Detecting location...'
+                            : address}
                     </Text>
                 </View>
+
                 <TouchableOpacity
-                    style={[styles.avatar, brandStyles.avatar]}
-                    onPress={() => router.push('/(protected)/(customer)/settings')}
+                    style={[
+                        styles.avatar,
+                        brandStyles.avatar,
+                    ]}
+                    onPress={() =>
+                        router.push(
+                            '/(protected)/(customer)/settings'
+                        )
+                    }
                     activeOpacity={0.7}
                 >
-                    <Text style={styles.avatarText} selectable>
-                        {user?.fullName ? getInitials(user.fullName) : 'U'}
+                    <Text style={styles.avatarText}>
+                        {user?.fullName
+                            ? getInitials(
+                                  user.fullName
+                              )
+                            : 'U'}
                     </Text>
                 </TouchableOpacity>
             </View>
-            <HeroBanner />
 
             <ScrollView
                 style={styles.content}
-                contentContainerStyle={styles.scrollInner}
-                contentInsetAdjustmentBehavior="automatic"
-                showsVerticalScrollIndicator={false}
+                contentContainerStyle={
+                    styles.scrollInner
+                }
+                showsVerticalScrollIndicator={
+                    false
+                }
             >
-                <View style={styles.sectionTight}>
-                    <View style={styles.quickActionsGrid}>
-                        {quickActions.map((action) => (
-                            <TouchableOpacity
-                                key={action.id}
-                                style={styles.quickActionCard}
-                                onPress={action.onPress}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.iconContainer, brandStyles.accentSoftFill]}>
-                                    <MaterialIcons name={action.icon} size={24} color={B.accent} />
-                                </View>
-                                <View style={styles.quickActionContent}>
-                                    <Text style={styles.quickActionTitle} selectable>
-                                        {action.title}
-                                    </Text>
-                                    <Text style={styles.quickActionSubtitle} selectable>
-                                        {action.subtitle}
-                                    </Text>
-                                </View>
-                                <MaterialIcons name="chevron-right" size={22} color={C.muted} />
-                            </TouchableOpacity>
-                        ))}
+                {/* HERO */}
+
+                <HeroBanner />
+
+                {/* SERVICES */}
+
+                <View style={styles.section}>
+                    <View
+                        style={
+                            styles.sectionHeader
+                        }
+                    >
+                        <Text
+                            style={
+                                styles.sectionTitle
+                            }
+                        >
+                            What are you looking
+                            for?
+                        </Text>
                     </View>
+
+                    {servicesLoading ? (
+                        <View
+                            style={
+                                styles.loadingContainer
+                            }
+                        >
+                            <ActivityIndicator
+                                size="large"
+                                color={B.accent}
+                            />
+                        </View>
+                    ) : (
+                        <View
+                            style={
+                                styles.servicesGrid
+                            }
+                        >
+                            {services.map(
+                                (
+                                    service
+                                ) => (
+                                    <TouchableOpacity
+                                        key={
+                                            service.id
+                                        }
+                                        style={
+                                            styles.serviceCard
+                                        }
+                                        activeOpacity={
+                                            0.85
+                                        }
+                                        onPress={() =>
+                                            openServiceCategory(
+                                                service
+                                            )
+                                        }
+                                    >
+                                        <View
+                                            style={[
+                                                styles.serviceIconContainer,
+                                                brandStyles.accentSoftFill,
+                                            ]}
+                                        >
+                                            <MaterialIcons
+                                                name={
+                                                    getServiceIcon(
+                                                        service.serviceName
+                                                    ) as any
+                                                }
+                                                size={
+                                                    34
+                                                }
+                                                color={
+                                                    B.accent
+                                                }
+                                            />
+                                        </View>
+
+                                        <Text
+                                            style={
+                                                styles.serviceName
+                                            }
+                                            numberOfLines={
+                                                2
+                                            }
+                                        >
+                                            {
+                                                service.serviceName
+                                            }
+                                        </Text>
+                                    </TouchableOpacity>
+                                )
+                            )}
+                        </View>
+                    )}
                 </View>
 
-                <View style={[styles.sectionTight, styles.lastSection]}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle} selectable>
-                            Recent requests
+                {/* RECENT ACTIVITIES */}
+
+                <View
+                    style={[
+                        styles.section,
+                        styles.bottomSpacing,
+                    ]}
+                >
+                    <View
+                        style={
+                            styles.sectionHeader
+                        }
+                    >
+                        <Text
+                            style={
+                                styles.sectionTitle
+                            }
+                        >
+                            Recent Activities
                         </Text>
-                        {requests.length > 0 ? (
-                            <TouchableOpacity onPress={() => router.push('/(protected)/(customer)/requests')}>
-                                <Text style={[styles.seeAllText, brandStyles.seeAll]} selectable>
+
+                        {requests.length >
+                        0 ? (
+                            <TouchableOpacity
+                                onPress={() =>
+                                    router.push(
+                                        '/(protected)/(customer)/requests'
+                                    )
+                                }
+                            >
+                                <Text
+                                    style={[
+                                        styles.seeAllText,
+                                        brandStyles.seeAll,
+                                    ]}
+                                >
                                     View all
                                 </Text>
                             </TouchableOpacity>
@@ -154,79 +412,157 @@ export default function CustomerDashboard() {
                     </View>
 
                     {requestsLoading ? (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color={B.accent} />
-                            <Text style={styles.loadingText} selectable>
-                                Loading requests…
-                            </Text>
+                        <View
+                            style={
+                                styles.loadingContainer
+                            }
+                        >
+                            <ActivityIndicator
+                                size="small"
+                                color={B.accent}
+                            />
                         </View>
-                    ) : requests.length === 0 ? (
-                        <View style={styles.emptyState}>
-                            <MaterialIcons name="event-note" size={40} color={C.muted} />
-                            <Text style={styles.emptyStateText} selectable>
+                    ) : requests.length ===
+                      0 ? (
+                        <View
+                            style={
+                                styles.emptyState
+                            }
+                        >
+                            <MaterialIcons
+                                name="event-note"
+                                size={42}
+                                color={
+                                    C.muted
+                                }
+                            />
+
+                            <Text
+                                style={
+                                    styles.emptyTitle
+                                }
+                            >
                                 No bookings yet
                             </Text>
-                            <Text style={styles.emptyStateSubtext} selectable>
-                                Book your first service using the shortcuts above
+
+                            <Text
+                                style={
+                                    styles.emptySubtitle
+                                }
+                            >
+                                Book your first
+                                service now
                             </Text>
                         </View>
                     ) : (
-                        <View style={styles.requestsContainer}>
-                            {requests.slice(0, 3).map((request: { id: string; status: string; type: string; address: string; createdAt: string }) => {
-                                const statusStyle = getStatusStyle(request.status);
-                                return (
-                                    <TouchableOpacity
-                                        key={request.id}
-                                        style={styles.requestCard}
-                                        onPress={() =>
-                                            router.push({
-                                                pathname: '/requests/[id]',
-                                                params: { id: request.id },
-                                            })
-                                        }
-                                    >
-                                        <View style={styles.requestHeader}>
-                                            <View style={[styles.requestTypeIcon, brandStyles.accentSoftFill]}>
-                                                <MaterialIcons
-                                                    name={
-                                                        request.type === 'electrician'
-                                                            ? 'electrical-services'
-                                                            : 'plumbing'
-                                                    }
-                                                    size={22}
-                                                    color={B.accent}
-                                                />
-                                            </View>
-                                            <View style={styles.requestInfo}>
-                                                <Text style={styles.requestType} selectable>
-                                                    {request.type.charAt(0).toUpperCase() + request.type.slice(1)}
-                                                </Text>
-                                                <Text style={styles.requestAddress} numberOfLines={1} selectable>
-                                                    {request.address}
-                                                </Text>
-                                            </View>
-                                            <View
-                                                style={[
-                                                    styles.statusBadge,
-                                                    { backgroundColor: statusStyle.backgroundColor },
-                                                ]}
+                        <View
+                            style={
+                                styles.requestsContainer
+                            }
+                        >
+                            {requests
+                                .slice(0, 3)
+                                .map(
+                                    (
+                                        request: any
+                                    ) => {
+                                        const statusStyle =
+                                            getStatusStyle(
+                                                request.status
+                                            );
+
+                                        return (
+                                            <TouchableOpacity
+                                                key={
+                                                    request.id
+                                                }
+                                                style={
+                                                    styles.requestCard
+                                                }
                                             >
-                                                <Text style={[styles.statusText, { color: statusStyle.color }]} selectable>
-                                                    {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-                                                </Text>
-                                            </View>
-                                        </View>
-                                        <Text style={styles.requestDate} selectable>
-                                            {new Date(request.createdAt).toLocaleDateString('en-US', {
-                                                month: 'short',
-                                                day: 'numeric',
-                                                hour: '2-digit',
-                                                minute: '2-digit',
-                                            })}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
+                                                <View
+                                                    style={
+                                                        styles.requestHeader
+                                                    }
+                                                >
+                                                    <View
+                                                        style={[
+                                                            styles.requestIcon,
+                                                            brandStyles.accentSoftFill,
+                                                        ]}
+                                                    >
+                                                        <MaterialIcons
+                                                            name={
+                                                                getServiceIcon(
+                                                                    request.type
+                                                                ) as any
+                                                            }
+                                                            size={
+                                                                24
+                                                            }
+                                                            color={
+                                                                B.accent
+                                                            }
+                                                        />
+                                                    </View>
+
+                                                    <View
+                                                        style={
+                                                            styles.requestInfo
+                                                        }
+                                                    >
+                                                        <Text
+                                                            style={
+                                                                styles.requestType
+                                                            }
+                                                        >
+                                                            {
+                                                                request.type
+                                                            }
+                                                        </Text>
+
+                                                        <Text
+                                                            style={
+                                                                styles.requestAddress
+                                                            }
+                                                            numberOfLines={
+                                                                1
+                                                            }
+                                                        >
+                                                            {
+                                                                request.address
+                                                            }
+                                                        </Text>
+                                                    </View>
+
+                                                    <View
+                                                        style={[
+                                                            styles.statusBadge,
+                                                            {
+                                                                backgroundColor:
+                                                                    statusStyle.backgroundColor,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        <Text
+                                                            style={[
+                                                                styles.statusText,
+                                                                {
+                                                                    color:
+                                                                        statusStyle.color,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            {
+                                                                request.status
+                                                            }
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            </TouchableOpacity>
+                                        );
+                                    }
+                                )}
                         </View>
                     )}
                 </View>
@@ -238,204 +574,197 @@ export default function CustomerDashboard() {
 const styles = StyleSheet.create({
     safeRoot: {
         flex: 1,
-        backgroundColor: C.canvas,
+        backgroundColor: '#f5f7fb',
     },
+
     header: {
         flexDirection: 'row',
+        justifyContent:
+            'space-between',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
+        paddingHorizontal: 18,
         paddingVertical: 12,
-        backgroundColor: C.surface,
-        borderBottomWidth: 0,
-        boxShadow: ELEV.header,
+        backgroundColor: '#fff',
     },
+
     headerLeft: {
         flex: 1,
-        marginRight: 10,
     },
+
     greeting: {
-        fontSize: 21,
+        fontSize: 24,
         fontWeight: '700',
-        color: C.text,
-        letterSpacing: -0.45,
-        marginBottom: 2,
+        color: '#111827',
     },
+
     subtitle: {
-        fontSize: 12,
-        color: C.muted,
+        marginTop: 4,
+        fontSize: 13,
+        color: '#6b7280',
     },
+
     avatar: {
-        width: 46,
-        height: 46,
-        borderRadius: 23,
-        alignItems: 'center',
+        width: 48,
+        height: 48,
+        borderRadius: 24,
         justifyContent: 'center',
-        borderWidth: 0,
-        overflow: 'hidden',
-        borderCurve: 'continuous',
+        alignItems: 'center',
     },
+
     avatarText: {
-        fontSize: 16,
+        color: '#fff',
         fontWeight: '700',
-        color: '#ffffff',
+        fontSize: 16,
     },
+
     content: {
         flex: 1,
-        backgroundColor: C.canvas,
     },
+
     scrollInner: {
-        paddingHorizontal: 16,
-        paddingBottom: 20,
+        padding: 16,
+        paddingBottom: 40,
     },
-    sectionTight: {
-        marginTop: 14,
+
+    section: {
+        marginTop: 22,
     },
-    lastSection: {
-        marginBottom: 8,
-    },
+
     sectionHeader: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent:
+            'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: 16,
     },
+
     sectionTitle: {
-        fontSize: 16,
+        fontSize: 20,
         fontWeight: '700',
-        color: C.text,
-        letterSpacing: -0.3,
+        color: '#111827',
     },
+
     seeAllText: {
         fontSize: 13,
         fontWeight: '600',
     },
-    quickActionsGrid: {
-        gap: 0,
-    },
-    quickActionCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: C.surface,
-        paddingVertical: 12,
-        paddingHorizontal: 14,
-        borderRadius: 16,
-        borderCurve: 'continuous',
-        borderWidth: 0,
-        marginBottom: 10,
-        gap: 12,
-        boxShadow: ELEV.card,
-    },
-    iconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        borderCurve: 'continuous',
-        alignItems: 'center',
+
+    loadingContainer: {
         justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 40,
     },
-    quickActionContent: {
-        flex: 1,
+
+    servicesGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent:
+            'space-between',
     },
-    quickActionTitle: {
+
+    serviceCard: {
+        width: '48%',
+        backgroundColor: '#fff',
+        borderRadius: 22,
+        paddingVertical: 24,
+        paddingHorizontal: 16,
+        marginBottom: 14,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#eef2f7',
+    },
+
+    serviceIconContainer: {
+        width: 72,
+        height: 72,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 14,
+    },
+
+    serviceName: {
         fontSize: 15,
-        fontWeight: '700',
-        color: C.text,
-        marginBottom: 2,
-        letterSpacing: -0.2,
+        fontWeight: '600',
+        color: '#111827',
+        textAlign: 'center',
     },
-    quickActionSubtitle: {
-        fontSize: 11,
-        color: C.muted,
-        lineHeight: 14,
-    },
+
     requestsContainer: {
-        gap: 8,
+        gap: 12,
     },
+
     requestCard: {
-        backgroundColor: C.surface,
-        borderRadius: 16,
-        borderCurve: 'continuous',
-        padding: 14,
-        borderWidth: 0,
-        boxShadow: ELEV.card,
+        backgroundColor: '#fff',
+        borderRadius: 18,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: '#eef2f7',
     },
+
     requestHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 8,
     },
-    requestTypeIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: 13,
-        borderCurve: 'continuous',
-        alignItems: 'center',
+
+    requestIcon: {
+        width: 52,
+        height: 52,
+        borderRadius: 18,
         justifyContent: 'center',
+        alignItems: 'center',
         marginRight: 12,
     },
+
     requestInfo: {
         flex: 1,
-        minWidth: 0,
     },
+
     requestType: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: C.text,
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#111827',
     },
+
     requestAddress: {
+        marginTop: 4,
         fontSize: 12,
-        color: C.muted,
-        marginTop: 1,
+        color: '#6b7280',
     },
+
     statusBadge: {
-        paddingHorizontal: 9,
-        paddingVertical: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
         borderRadius: 10,
-        borderCurve: 'continuous',
     },
+
     statusText: {
         fontSize: 11,
-        fontWeight: '600',
+        fontWeight: '700',
         textTransform: 'capitalize',
     },
-    requestDate: {
-        fontSize: 12,
-        color: C.muted,
-        marginLeft: 56,
-        fontVariant: ['tabular-nums'],
-    },
+
     emptyState: {
-        backgroundColor: C.surface,
-        paddingVertical: 28,
-        paddingHorizontal: 18,
-        borderRadius: 16,
-        borderCurve: 'continuous',
+        backgroundColor: '#fff',
+        borderRadius: 20,
+        paddingVertical: 40,
         alignItems: 'center',
-        borderWidth: 0,
-        boxShadow: ELEV.card,
     },
-    emptyStateText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: C.text,
-        marginTop: 8,
-    },
-    emptyStateSubtext: {
-        fontSize: 12,
-        color: C.muted,
-        marginTop: 4,
-        textAlign: 'center',
-        lineHeight: 16,
-    },
-    loadingContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 28,
-    },
-    loadingText: {
+
+    emptyTitle: {
         marginTop: 12,
+        fontSize: 16,
+        fontWeight: '700',
+        color: '#111827',
+    },
+
+    emptySubtitle: {
+        marginTop: 6,
         fontSize: 13,
-        color: C.muted,
+        color: '#6b7280',
+    },
+
+    bottomSpacing: {
+        marginBottom: 20,
     },
 });

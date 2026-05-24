@@ -69,6 +69,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
             }
         ],
         [
+            "expo-image-picker",
+            {
+                "cameraPermission": "Allow ServeX to access your camera to capture your profile picture and ID documents for verification.",
+                "photosPermission": "Allow ServeX to access your photos." // Keep this minimal as we won't use it much
+            }
+        ],
+        [
             "expo-location",
             {
                 isAndroidBackgroundLocationEnabled: false,

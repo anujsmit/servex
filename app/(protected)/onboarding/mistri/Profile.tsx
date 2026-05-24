@@ -84,22 +84,26 @@ export default function MistriOnboardingProfile() {
     useEffect(() => {
         (async () => {
             if (Platform.OS !== 'web') {
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                // Request camera permission instead of media library
+                const { status } = await ImagePicker.requestCameraPermissionsAsync();
                 if (status !== 'granted') {
-                    Alert.alert('Permission required', 'Permission to access photos is needed!');
+                    Alert.alert(
+                        'Camera Permission Required',
+                        'Camera access is needed to take your profile picture and capture ID documents in real-time for verification.'
+                    );
                 }
             }
         })();
     }, []);
 
-    const pickImage = async (setter: (uri: string) => void, base64Setter: (b64: string) => void) => {
+    const takePhoto = async (setter: (uri: string) => void, base64Setter: (b64: string) => void) => {
         try {
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            const result = await ImagePicker.launchCameraAsync({
                 allowsEditing: true,
                 quality: 0.7,
                 base64: false,
             });
+
             if (!result.canceled && result.assets.length > 0) {
                 const asset = result.assets[0];
                 const manipulated = await ImageManipulator.manipulateAsync(
@@ -112,6 +116,7 @@ export default function MistriOnboardingProfile() {
             }
         } catch (error) {
             if (__DEV__) console.error(error);
+            Alert.alert('Error', 'Failed to capture photo. Please try again.');
         }
     };
 
@@ -144,56 +149,101 @@ export default function MistriOnboardingProfile() {
             return;
         }
         setUploading(true);
+
         try {
-            const response = await fetch(`${API_URL}/api/auth/mistri/profile`, {
+            // Parse location coordinates properly
+            let locationString = location;
+            if (markerPosition) {
+                locationString = `${markerPosition.latitude},${markerPosition.longitude}`;
+            }
+
+            const requestBody = {
+                serviceId: Number(serviceId), // Ensure it's a number
+                profilePhotoBase64: imageBase64,
+                currentLocation: locationString,
+                fullName: fullName.trim(),
+                bio: bio.trim(),
+                experienceLevel: experienceLevel,
+                govtIdType: govtIdType,
+                govtIdFrontBase64: idFrontBase64,
+                govtIdBackBase64: idBackBase64,
+            };
+
+            console.log('Sending request to:', `${API_URL}/api/mistri/profile`); // Changed from /api/auth/mistri/profile
+            console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
+            const response = await fetch(`${API_URL}/api/mistri/profile`, { // Changed endpoint
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
+                    'Authorization': `Bearer ${token}`,
                 },
-                body: JSON.stringify({
-                    serviceId,
-                    profilePhotoBase64: imageBase64,
-                    currentLocation: location,
-                    fullName,
-                    bio,
-                    experienceLevel,
-                    govtIdType,
-                    govtIdFrontBase64: idFrontBase64,
-                    govtIdBackBase64: idBackBase64,
-                }),
+                body: JSON.stringify(requestBody),
             });
+
+            // First check if response is ok
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to create profile');
+                const textResponse = await response.text();
+                console.error('Server error response:', textResponse);
+
+                // Try to parse as JSON, if fails show HTML error
+                try {
+                    const errorData = JSON.parse(textResponse);
+                    throw new Error(errorData.message || `Server error: ${response.status}`);
+                } catch (parseError) {
+                    throw new Error(`Server error (${response.status}). Please check your connection and try again.`);
+                }
             }
+
+            const data = await response.json();
+            console.log('Success response:', data);
+
+            // Refresh user data
             await getMe();
+
+            // Navigate to pending approval
             router.replace(ROUTES.PENDING_APPROVAL as any);
-        } catch (error) {
-            if (__DEV__) console.error('Onboarding error', error);
-            Alert.alert('Error', 'Failed to complete onboarding. Please try again.');
+        } catch (error: any) {
+            if (__DEV__) {
+                console.error('Onboarding error details:', {
+                    message: error.message,
+                    stack: error.stack,
+                });
+            }
+
+            Alert.alert(
+                'Error',
+                error.message || 'Failed to complete onboarding. Please try again.'
+            );
         } finally {
             setUploading(false);
         }
     };
-
     const renderIdPicker = (
         label: string,
         uri: string | null,
-        onPick: () => void
+        onTakePhoto: () => void
     ) => (
-        <TouchableOpacity style={styles.idPickerButton} onPress={onPick} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.idPickerButton} onPress={onTakePhoto} activeOpacity={0.8}>
             {uri ? (
-                <Image source={{ uri }} style={styles.idThumbnail} />
+                <>
+                    <Image source={{ uri }} style={styles.idThumbnail} />
+                    <View style={styles.idPickerOverlay}>
+                        <Ionicons name="checkmark-circle" size={22} color="#22c55e" />
+                    </View>
+                    <TouchableOpacity
+                        style={styles.retakeButton}
+                        onPress={onTakePhoto}
+                    >
+                        <Ionicons name="camera-reverse" size={16} color="white" />
+                        <Text style={styles.retakeText}>Retake</Text>
+                    </TouchableOpacity>
+                </>
             ) : (
                 <View style={styles.idPickerPlaceholder}>
-                    <Ionicons name="camera-outline" size={24} color="#6b7280" />
+                    <Ionicons name="camera-outline" size={32} color="#6b7280" />
                     <Text style={styles.idPickerLabel}>{label}</Text>
-                </View>
-            )}
-            {uri && (
-                <View style={styles.idPickerOverlay}>
-                    <Ionicons name="checkmark-circle" size={22} color="#22c55e" />
+                    <Text style={styles.idPickerSubLabel}>Take Photo</Text>
                 </View>
             )}
         </TouchableOpacity>
@@ -208,15 +258,27 @@ export default function MistriOnboardingProfile() {
                     <Text style={styles.subtitle}>Complete your service profile to start accepting jobs</Text>
                 </View>
 
-                {/* Profile Photo */}
+                {/* Profile Photo - Using Camera */}
                 <View style={styles.section}>
-                    <TouchableOpacity style={styles.avatarPlaceholder} onPress={() => pickImage(setImageUri, (b) => setImageBase64(b))} activeOpacity={0.8}>
+                    <Text style={styles.inputLabel}>Profile Photo <Text style={styles.required}>*</Text></Text>
+                    <Text style={styles.helperText}>Take a live photo for your profile</Text>
+                    <TouchableOpacity
+                        style={styles.avatarPlaceholder}
+                        onPress={() => takePhoto(setImageUri, (b) => setImageBase64(b))}
+                        activeOpacity={0.8}
+                    >
                         {imageUri ? (
-                            <Image source={{ uri: imageUri }} style={styles.avatar} />
+                            <>
+                                <Image source={{ uri: imageUri }} style={styles.avatar} />
+                                <View style={styles.cameraOverlay}>
+                                    <Ionicons name="camera-reverse" size={20} color="white" />
+                                    <Text style={styles.retakeText}>Retake</Text>
+                                </View>
+                            </>
                         ) : (
                             <View style={styles.avatarEmpty}>
-                                <Ionicons name="camera" size={28} color="#9ca3af" />
-                                <Text style={styles.avatarEmptyText}>Add Photo</Text>
+                                <Ionicons name="camera" size={32} color="#9ca3af" />
+                                <Text style={styles.avatarEmptyText}>Take Photo</Text>
                             </View>
                         )}
                     </TouchableOpacity>
@@ -328,10 +390,10 @@ export default function MistriOnboardingProfile() {
                     )}
                 </View>
 
-                {/* Government ID */}
+                {/* Government ID - Using Camera */}
                 <View style={styles.section}>
                     <Text style={styles.inputLabel}>Government ID <Text style={styles.required}>*</Text></Text>
-                    <Text style={styles.helperText}>Upload a clear photo of both sides of your ID</Text>
+                    <Text style={styles.helperText}>Take clear photos of both sides of your ID</Text>
 
                     {/* ID Type selector */}
                     <View style={styles.idTypeGrid}>
@@ -351,17 +413,17 @@ export default function MistriOnboardingProfile() {
                         ))}
                     </View>
 
-                    {/* Front + Back pickers */}
+                    {/* Front + Back pickers using camera */}
                     <View style={styles.idPickersRow}>
                         {renderIdPicker(
                             'Front Side',
                             idFrontUri,
-                            () => pickImage(setIdFrontUri, (b) => setIdFrontBase64(b))
+                            () => takePhoto(setIdFrontUri, (b) => setIdFrontBase64(b))
                         )}
                         {renderIdPicker(
                             'Back Side',
                             idBackUri,
-                            () => pickImage(setIdBackUri, (b) => setIdBackBase64(b))
+                            () => takePhoto(setIdBackUri, (b) => setIdBackBase64(b))
                         )}
                     </View>
                 </View>
@@ -418,10 +480,35 @@ const styles = StyleSheet.create({
     textInput: { paddingHorizontal: 16, paddingVertical: 14, fontSize: 16, color: '#1a1a1a' },
     textArea: { height: 100, textAlignVertical: 'top' },
     errorText: { color: '#ef4444', fontSize: 13, marginTop: 4 },
-    avatarPlaceholder: { width: 80, height: 80, borderRadius: 40, overflow: 'hidden', borderWidth: 2, borderColor: '#e5e5e5' },
-    avatar: { width: 80, height: 80, borderRadius: 40 },
-    avatarEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8f9fa' },
-    avatarEmptyText: { fontSize: 11, color: '#9ca3af', marginTop: 4 },
+    avatarPlaceholder: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        overflow: 'hidden',
+        borderWidth: 2,
+        borderColor: '#e5e5e5',
+        position: 'relative',
+    },
+    avatar: { width: 120, height: 120, borderRadius: 60 },
+    avatarEmpty: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#f8f9fa'
+    },
+    avatarEmptyText: { fontSize: 12, color: '#9ca3af', marginTop: 4 },
+    cameraOverlay: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 6,
+        gap: 4,
+    },
     pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
     servicePill: {
         flexDirection: 'row',
@@ -476,7 +563,7 @@ const styles = StyleSheet.create({
     idPickersRow: { flexDirection: 'row', gap: 12 },
     idPickerButton: {
         flex: 1,
-        height: 110,
+        height: 130,
         borderRadius: 12,
         borderWidth: 2,
         borderColor: '#e5e5e5',
@@ -490,7 +577,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#f8f9fa',
         gap: 6,
     },
-    idPickerLabel: { fontSize: 12, color: '#6b7280', fontWeight: '500', textAlign: 'center' },
+    idPickerLabel: { fontSize: 13, color: '#6b7280', fontWeight: '600' },
+    idPickerSubLabel: { fontSize: 11, color: '#9ca3af' },
     idThumbnail: { width: '100%', height: '100%' },
     idPickerOverlay: {
         position: 'absolute',
@@ -499,6 +587,19 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderRadius: 11,
     },
+    retakeButton: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 6,
+        gap: 4,
+    },
+    retakeText: { color: 'white', fontSize: 11, fontWeight: '500' },
     submitButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', marginBottom: 16 },
     buttonDisabled: { backgroundColor: '#d1d5db' },
     submitButtonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
