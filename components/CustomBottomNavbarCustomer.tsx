@@ -1,10 +1,10 @@
 import React from 'react';
-
 import {
     View,
     TouchableOpacity,
     StyleSheet,
     Text,
+    Dimensions,
 } from 'react-native';
 
 import {
@@ -17,124 +17,108 @@ import {
     MaterialIcons,
 } from '@expo/vector-icons';
 
-export default function CustomBottomNavbarCustomer() {
-    const router = useRouter();
+const { width } = Dimensions.get('window');
 
+const TABS = [
+    {
+        label: 'Home',
+        icon: 'home-outline',
+        activeIcon: 'home',
+        type: 'ion',
+        path: '/(protected)/(customer)',
+    },
+    {
+        label: 'Services',
+        icon: 'miscellaneous-services',
+        activeIcon: 'miscellaneous-services',
+        type: 'material',
+        path: '/(protected)/(customer)/servexservice',
+    },
+    {
+        label: 'Requests',
+        icon: 'receipt-long',
+        activeIcon: 'receipt-long',
+        type: 'material',
+        path: '/(protected)/(customer)/requests',
+    },
+    {
+        label: 'Settings',
+        icon: 'person-outline',
+        activeIcon: 'person',
+        type: 'ion',
+        path: '/(protected)/(customer)/settings',
+    },
+];
+
+export default function CustomBottomNavbar() {
+    const router = useRouter();
     const pathname = usePathname();
 
-    const tabs = [
-        {
-            label: 'Home',
+    const activeIndex = TABS.findIndex((tab) =>
+        pathname.startsWith(tab.path)
+    );
 
-            icon: 'home-outline',
+    const handleNavigation = (path) => {
+        if (pathname !== path) {
+            router.replace(path);
+        }
+    };
 
-            activeIcon: 'home',
+    const renderIcon = (tab, isActive) => {
+        const color = isActive ? '#3b82f6' : '#94a3b8';
+        const iconName = isActive ? tab.activeIcon : tab.icon;
 
-            path:
-                '/(protected)/(customer)',
-        },
+        if (tab.type === 'ion') {
+            return (
+                <Ionicons
+                    name={iconName}
+                    size={24}
+                    color={color}
+                />
+            );
+        }
 
-        {
-            label: 'Requests',
-
-            icon: 'receipt-long',
-
-            activeIcon: 'receipt-long',
-
-            path:
-                '/(protected)/(customer)/requests',
-        },
-
-        {
-            label: 'Settings',
-
-            icon: 'person-outline',
-
-            activeIcon: 'person',
-
-            path:
-                '/(protected)/(customer)/settings',
-        },
-    ];
+        return (
+            <MaterialIcons
+                name={iconName}
+                size={24}
+                color={color}
+            />
+        );
+    };
 
     return (
         <View style={styles.wrapper}>
             <View style={styles.container}>
-                {tabs.map((tab) => {
-                    const isActive =
-                        pathname === tab.path;
+                {TABS.map((tab, index) => {
+                    const isActive = index === activeIndex;
 
                     return (
                         <TouchableOpacity
                             key={tab.label}
-                            style={
-                                styles.tabButton
-                            }
-                            activeOpacity={
-                                0.8
-                            }
-                            onPress={() =>
-                                router.push(
-                                    tab.path as any
-                                )
-                            }
+                            style={styles.tabButton}
+                            activeOpacity={0.7}
+                            onPress={() => handleNavigation(tab.path)}
                         >
-                            <View
-                                style={[
-                                    styles.iconContainer,
+                            <View style={styles.tabContent}>
+                                <View
+                                    style={[
+                                        styles.iconWrapper,
+                                        isActive && styles.activeIconWrapper,
+                                    ]}
+                                >
+                                    {renderIcon(tab, isActive)}
+                                </View>
 
-                                    isActive &&
-                                        styles.activeIconContainer,
-                                ]}
-                            >
-                                {tab.label ===
-                                'Requests' ? (
-                                    <MaterialIcons
-                                        name={
-                                            isActive
-                                                ? 'receipt-long'
-                                                : 'receipt-long'
-                                        }
-                                        size={
-                                            24
-                                        }
-                                        color={
-                                            isActive
-                                                ? '#2563eb'
-                                                : '#6b7280'
-                                        }
-                                    />
-                                ) : (
-                                    <Ionicons
-                                        name={
-                                            (
-                                                isActive
-                                                    ? tab.activeIcon
-                                                    : tab.icon
-                                            ) as any
-                                        }
-                                        size={
-                                            24
-                                        }
-                                        color={
-                                            isActive
-                                                ? '#2563eb'
-                                                : '#6b7280'
-                                        }
-                                    />
-                                )}
+                                <Text
+                                    style={[
+                                        styles.label,
+                                        isActive && styles.activeLabel,
+                                    ]}
+                                >
+                                    {tab.label}
+                                </Text>
                             </View>
-
-                            <Text
-                                style={[
-                                    styles.label,
-
-                                    isActive &&
-                                        styles.activeLabel,
-                                ]}
-                            >
-                                {tab.label}
-                            </Text>
                         </TouchableOpacity>
                     );
                 })}
@@ -146,80 +130,71 @@ export default function CustomBottomNavbarCustomer() {
 const styles = StyleSheet.create({
     wrapper: {
         position: 'absolute',
-
         left: 0,
-
         right: 0,
-
-        bottom: 18,
-
+        bottom: 24,
         alignItems: 'center',
+        zIndex: 1000,
     },
 
     container: {
+        width: width - 32,
+        height: 70,
+        backgroundColor: '#ffffff',
+        borderRadius: 24,
         flexDirection: 'row',
-
-        width: '90%',
-
-        backgroundColor:
-            'rgba(255,255,255,0.96)',
-
-        borderRadius: 30,
-
-        height: 74,
-
-        justifyContent:
-            'space-around',
-
         alignItems: 'center',
+        justifyContent: 'space-around',
+        paddingHorizontal: 12,
 
         shadowColor: '#000',
-
         shadowOffset: {
             width: 0,
-            height: 10,
+            height: 8,
         },
-
         shadowOpacity: 0.08,
+        shadowRadius: 24,
 
-        shadowRadius: 20,
+        elevation: 10,
 
-        elevation: 12,
+        borderWidth: 0.5,
+        borderColor: '#e2e8f0',
     },
 
     tabButton: {
-        alignItems: 'center',
-
+        flex: 1,
+        height: '100%',
         justifyContent: 'center',
-    },
-
-    iconContainer: {
-        width: 46,
-
-        height: 46,
-
-        borderRadius: 16,
-
-        justifyContent: 'center',
-
         alignItems: 'center',
     },
 
-    activeIconContainer: {
+    tabContent: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    iconWrapper: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+
+    activeIconWrapper: {
         backgroundColor: '#eff6ff',
     },
 
     label: {
-        marginTop: 4,
-
         fontSize: 11,
-
-        fontWeight: '600',
-
-        color: '#6b7280',
+        fontWeight: '500',
+        color: '#94a3b8',
+        letterSpacing: 0.3,
     },
 
     activeLabel: {
-        color: '#2563eb',
+        color: '#3b82f6',
+        fontWeight: '600',
     },
 });

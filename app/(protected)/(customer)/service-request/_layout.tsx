@@ -6,7 +6,7 @@ export default function ServiceRequestLayout() {
             screenOptions={{
                 headerShown: false,
                 presentation: 'card',
-                animation: 'slide_from_right',
+                animation: 'none',
             }}
         >
             <Stack.Screen

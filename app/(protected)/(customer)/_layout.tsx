@@ -5,6 +5,8 @@ export default function CustomerLayout() {
         <Stack
             screenOptions={{
                 headerShown: false,
+
+                animation: 'none',
             }}
         />
     );

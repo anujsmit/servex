@@ -9,18 +9,18 @@ import {
     NativeScrollEvent,
     ActivityIndicator,
     useWindowDimensions,
+    Animated,
 } from 'react-native';
 import { API_BASE_URL } from '../lib/config';
 import {
     customerBrand,
     customerDashboardColors as C,
-    customerDashboardElevation as ELEV,
 } from '../lib/customerDashboardTokens';
 
-const H_INSET = 16;
-const CARD_HEIGHT = 176;
-const SECTION_PADDING_TOP = 12;
-const SECTION_PADDING_BOTTOM = 10;
+const H_INSET = 0;
+const CARD_HEIGHT = 200;
+const SECTION_PADDING_TOP = 0;
+const SECTION_PADDING_BOTTOM = 0;
 
 interface Banner {
     id: string;
@@ -36,6 +36,31 @@ export const HeroBanner: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [activeIndex, setActiveIndex] = useState(0);
     const scrollViewRef = useRef<ScrollView>(null);
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const slideAnim = useRef(new Animated.Value(30)).current;
+    const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+    useEffect(() => {
+        // Entrance animation
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 600,
+                useNativeDriver: true,
+            }),
+            Animated.spring(scaleAnim, {
+                toValue: 1,
+                friction: 8,
+                tension: 40,
+                useNativeDriver: true,
+            }),
+        ]).start();
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -74,33 +99,53 @@ export const HeroBanner: React.FC = () => {
         setActiveIndex(index);
     };
 
+    const handleManualScroll = (index: number) => {
+        setActiveIndex(index);
+        scrollViewRef.current?.scrollTo({ x: index * windowWidth, animated: true });
+    };
+
     const cardShellStyle = {
-        marginHorizontal: H_INSET,
+        width: windowWidth,
         height: CARD_HEIGHT,
-        borderRadius: 16,
-        borderCurve: 'continuous' as const,
+        borderRadius: 0,
         overflow: 'hidden' as const,
-        borderWidth: 1,
-        borderColor: C.cardBorder,
-        boxShadow: ELEV.card,
+        backgroundColor: C.cardFill,
     };
 
     if (loading) {
         return (
-            <View style={styles.section}>
+            <Animated.View 
+                style={[
+                    styles.section,
+                    {
+                        opacity: fadeAnim,
+                        transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+                    }
+                ]}
+            >
                 <View style={[styles.cardShell, cardShellStyle]}>
                     <View style={styles.loadingInner}>
-                        <ActivityIndicator size="small" color={customerBrand.accent} />
+                        <ActivityIndicator size="large" color={customerBrand.accent} />
                     </View>
                 </View>
-            </View>
+            </Animated.View>
         );
     }
 
-    if (banners.length === 0) return null;
+    if (banners.length === 0) {
+        return null;
+    }
 
     return (
-        <View style={styles.section}>
+        <Animated.View 
+            style={[
+                styles.section,
+                {
+                    opacity: fadeAnim,
+                    transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+                }
+            ]}
+        >
             <ScrollView
                 ref={scrollViewRef}
                 horizontal
@@ -108,17 +153,27 @@ export const HeroBanner: React.FC = () => {
                 showsHorizontalScrollIndicator={false}
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
-                contentInsetAdjustmentBehavior="automatic"
+                decelerationRate="fast"
                 style={styles.slider}
             >
                 {banners.map((banner) => (
                     <View key={banner.id} style={[styles.slidePage, { width: windowWidth }]}>
-                        <TouchableOpacity activeOpacity={0.92} style={styles.cardPressable}>
+                        <TouchableOpacity 
+                            activeOpacity={0.95} 
+                            style={styles.cardPressable}
+                            onPress={() => {
+                                if (banner.linkUrl) {
+                                    // Handle navigation
+                                    console.log('Navigate to:', banner.linkUrl);
+                                }
+                            }}
+                        >
                             <View style={[styles.cardShell, cardShellStyle]}>
                                 <Image
                                     source={{ uri: banner.imageUrl }}
                                     style={styles.bannerImage}
                                     resizeMode="cover"
+                                    onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
                                 />
                             </View>
                         </TouchableOpacity>
@@ -129,14 +184,22 @@ export const HeroBanner: React.FC = () => {
             {banners.length > 1 && (
                 <View style={styles.pagination}>
                     {banners.map((_, index) => (
-                        <View
+                        <TouchableOpacity
                             key={index}
-                            style={[styles.dot, index === activeIndex && styles.activeDot]}
-                        />
+                            onPress={() => handleManualScroll(index)}
+                            activeOpacity={0.7}
+                        >
+                            <View 
+                                style={[
+                                    styles.dot, 
+                                    index === activeIndex && styles.activeDot,
+                                ]} 
+                            />
+                        </TouchableOpacity>
                     ))}
                 </View>
             )}
-        </View>
+        </Animated.View>
     );
 };
 
@@ -145,19 +208,21 @@ const styles = StyleSheet.create({
         width: '100%',
         paddingTop: SECTION_PADDING_TOP,
         paddingBottom: SECTION_PADDING_BOTTOM,
-        backgroundColor: C.canvas,
+        backgroundColor: 'transparent',
+        marginBottom: 8,
     },
     slider: {
-        backgroundColor: C.canvas,
+        backgroundColor: 'transparent',
     },
     slidePage: {
-        backgroundColor: C.canvas,
+        backgroundColor: 'transparent',
     },
     cardShell: {
         backgroundColor: C.cardFill,
     },
     cardPressable: {
         width: '100%',
+        flex: 1,
     },
     bannerImage: {
         width: '100%',
@@ -168,24 +233,25 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         minHeight: CARD_HEIGHT,
+        backgroundColor: '#f5f7fb',
     },
     pagination: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         gap: 8,
-        marginTop: 10,
-        paddingHorizontal: H_INSET,
+        marginTop: 12,
+        paddingHorizontal: 16,
+        paddingBottom: 8,
     },
     dot: {
         width: 8,
         height: 8,
         borderRadius: 4,
-        borderCurve: 'continuous',
-        backgroundColor: 'rgba(15, 23, 42, 0.2)',
+        backgroundColor: 'rgba(15, 23, 42, 0.3)',
     },
     activeDot: {
         backgroundColor: customerBrand.accent,
-        width: 22,
+        width: 24,
     },
 });
