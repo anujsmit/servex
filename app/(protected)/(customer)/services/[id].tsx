@@ -13,31 +13,35 @@ import {
     Image,
 } from 'react-native';
 
-import { useLocalSearchParams } from 'expo-router';
-
-import { useRouter } from 'expo-router';
+import {
+    useLocalSearchParams,
+    useRouter,
+} from 'expo-router';
 
 import { MaterialIcons } from '@expo/vector-icons';
 
 import { SafeAreaContainer } from '../../../../components/SafeAreaContainer';
 
 interface PlatformService {
-    id: string;
+    id: number;
+
     name: string;
+
     description?: string;
+
     price?: number;
+
     image_url?: string;
 }
 
 export default function ServiceDetailsPage() {
+    const router = useRouter();
+
     const { id, serviceName } =
         useLocalSearchParams();
 
-    const router = useRouter();
-
-    const [services, setServices] = useState<
-        PlatformService[]
-    >([]);
+    const [services, setServices] =
+        useState<PlatformService[]>([]);
 
     const [loading, setLoading] =
         useState(true);
@@ -46,56 +50,98 @@ export default function ServiceDetailsPage() {
         fetchPlatformServices();
     }, []);
 
-    const fetchPlatformServices = async () => {
-        try {
-            setLoading(true);
+    const fetchPlatformServices =
+        async () => {
+            try {
+                setLoading(true);
 
-            const response = await fetch(
-                `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/platform-services/${id}`
-            );
+                const response =
+                    await fetch(
+                        `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/platform-services/${id}`
+                    );
 
-            const data = await response.json();
+                const data =
+                    await response.json();
 
-            console.log(
-                'PLATFORM SERVICES:',
-                data
-            );
+                console.log(
+                    'PLATFORM SERVICES:',
+                    data
+                );
 
-            if (response.ok) {
-                if (Array.isArray(data)) {
-                    setServices(data);
-                } else if (
-                    Array.isArray(data.services)
-                ) {
-                    setServices(data.services);
-                } else if (
-                    Array.isArray(data.data)
-                ) {
-                    setServices(data.data);
-                } else {
-                    setServices([]);
+                if (response.ok) {
+                    // API returns array directly
+                    if (
+                        Array.isArray(data)
+                    ) {
+                        setServices(data);
+                    }
+
+                    // API returns { services: [] }
+                    else if (
+                        data &&
+                        Array.isArray(
+                            data.services
+                        )
+                    ) {
+                        setServices(
+                            data.services
+                        );
+                    }
+
+                    // API returns { data: [] }
+                    else if (
+                        data &&
+                        Array.isArray(
+                            data.data
+                        )
+                    ) {
+                        setServices(
+                            data.data
+                        );
+                    }
+
+                    else {
+                        setServices([]);
+                    }
                 }
-            }
-        } catch (error) {
-            console.log(
-                'Failed to fetch platform services:',
-                error
-            );
-        } finally {
-            setLoading(false);
-        }
-    };
+            } catch (error) {
+                console.log(
+                    'Failed to fetch platform services:',
+                    error
+                );
 
-    const handleBookService = (
+                setServices([]);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+    const handleOpenService = (
         item: PlatformService
     ) => {
         router.push({
-            pathname:'/service-request/book-service',
+            pathname:
+                '/(protected)/(customer)/service-request/service-details',
 
             params: {
-                serviceId: item.id,
-                serviceName: item.name,
-                parentServiceId: id,
+                platformServiceId:
+                    item.id.toString(),
+
+                serviceName:
+                    item.name,
+
+                description:
+                    item.description || '',
+
+                price:
+                    item.price?.toString() ||
+                    '0',
+
+                image:
+                    item.image_url || '',
+
+                parentServiceId:
+                    id?.toString(),
             },
         });
     };
@@ -112,6 +158,8 @@ export default function ServiceDetailsPage() {
                     false
                 }
             >
+                {/* HEADER */}
+
                 <View style={styles.header}>
                     <Text style={styles.title}>
                         {serviceName}
@@ -120,9 +168,12 @@ export default function ServiceDetailsPage() {
                     <Text
                         style={styles.subtitle}
                     >
-                        Choose the service you need
+                        Choose the service you
+                        need
                     </Text>
                 </View>
+
+                {/* LOADING */}
 
                 {loading ? (
                     <View
@@ -135,6 +186,37 @@ export default function ServiceDetailsPage() {
                             color="#2563eb"
                         />
                     </View>
+                ) : services.length ===
+                  0 ? (
+                    <View
+                        style={
+                            styles.emptyContainer
+                        }
+                    >
+                        <MaterialIcons
+                            name="home-repair-service"
+                            size={70}
+                            color="#9ca3af"
+                        />
+
+                        <Text
+                            style={
+                                styles.emptyTitle
+                            }
+                        >
+                            No services available
+                        </Text>
+
+                        <Text
+                            style={
+                                styles.emptySubtitle
+                            }
+                        >
+                            Services will appear
+                            here once added from
+                            admin panel
+                        </Text>
+                    </View>
                 ) : (
                     <View style={styles.grid}>
                         {services.map(
@@ -145,14 +227,16 @@ export default function ServiceDetailsPage() {
                                         styles.card
                                     }
                                     activeOpacity={
-                                        0.8
+                                        0.88
                                     }
                                     onPress={() =>
-                                        handleBookService(
+                                        handleOpenService(
                                             item
                                         )
                                     }
                                 >
+                                    {/* IMAGE */}
+
                                     {item.image_url ? (
                                         <Image
                                             source={{
@@ -171,12 +255,14 @@ export default function ServiceDetailsPage() {
                                             <MaterialIcons
                                                 name="build"
                                                 size={
-                                                    40
+                                                    46
                                                 }
                                                 color="#2563eb"
                                             />
                                         </View>
                                     )}
+
+                                    {/* CONTENT */}
 
                                     <View
                                         style={
@@ -202,7 +288,7 @@ export default function ServiceDetailsPage() {
                                             }
                                         >
                                             {item.description ||
-                                                'Professional service by verified experts'}
+                                                'Professional verified service'}
                                         </Text>
 
                                         <View
@@ -210,22 +296,33 @@ export default function ServiceDetailsPage() {
                                                 styles.bottomRow
                                             }
                                         >
-                                            <Text
-                                                style={
-                                                    styles.price
-                                                }
-                                            >
-                                                Rs.{' '}
-                                                {item.price ||
-                                                    0}
-                                            </Text>
+                                            <View>
+                                                <Text
+                                                    style={
+                                                        styles.price
+                                                    }
+                                                >
+                                                    Rs.{' '}
+                                                    {item.price ||
+                                                        0}
+                                                </Text>
+
+                                                <Text
+                                                    style={
+                                                        styles.duration
+                                                    }
+                                                >
+                                                    45
+                                                    mins
+                                                </Text>
+                                            </View>
 
                                             <TouchableOpacity
                                                 style={
                                                     styles.bookButton
                                                 }
                                                 onPress={() =>
-                                                    handleBookService(
+                                                    handleOpenService(
                                                         item
                                                     )
                                                 }
@@ -235,7 +332,7 @@ export default function ServiceDetailsPage() {
                                                         styles.bookButtonText
                                                     }
                                                 >
-                                                    Book
+                                                    View
                                                 </Text>
                                             </TouchableOpacity>
                                         </View>
@@ -258,7 +355,7 @@ const styles = StyleSheet.create({
 
     content: {
         padding: 16,
-        paddingBottom: 30,
+        paddingBottom: 40,
     },
 
     header: {
@@ -266,7 +363,7 @@ const styles = StyleSheet.create({
     },
 
     title: {
-        fontSize: 28,
+        fontSize: 30,
         fontWeight: '700',
         color: '#111827',
     },
@@ -284,37 +381,58 @@ const styles = StyleSheet.create({
         paddingTop: 80,
     },
 
+    emptyContainer: {
+        alignItems: 'center',
+        paddingTop: 80,
+    },
+
+    emptyTitle: {
+        marginTop: 16,
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#111827',
+    },
+
+    emptySubtitle: {
+        marginTop: 8,
+        fontSize: 14,
+        color: '#6b7280',
+        textAlign: 'center',
+        lineHeight: 22,
+        paddingHorizontal: 30,
+    },
+
     grid: {
-        gap: 16,
+        gap: 18,
     },
 
     card: {
         backgroundColor: '#fff',
-        borderRadius: 18,
+        borderRadius: 22,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        borderColor: '#eef2f7',
     },
 
     image: {
         width: '100%',
-        height: 180,
+        height: 190,
     },
 
     imagePlaceholder: {
         width: '100%',
-        height: 180,
+        height: 190,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#eff6ff',
     },
 
     cardContent: {
-        padding: 16,
+        padding: 18,
     },
 
     cardTitle: {
-        fontSize: 18,
+        fontSize: 19,
         fontWeight: '700',
         color: '#111827',
     },
@@ -322,33 +440,40 @@ const styles = StyleSheet.create({
     cardDescription: {
         marginTop: 8,
         fontSize: 14,
+        lineHeight: 22,
         color: '#6b7280',
-        lineHeight: 20,
     },
 
     bottomRow: {
-        marginTop: 16,
+        marginTop: 18,
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent:
+            'space-between',
         alignItems: 'center',
     },
 
     price: {
-        fontSize: 18,
+        fontSize: 22,
         fontWeight: '700',
         color: '#111827',
     },
 
+    duration: {
+        marginTop: 2,
+        fontSize: 13,
+        color: '#6b7280',
+    },
+
     bookButton: {
         backgroundColor: '#2563eb',
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        borderRadius: 10,
+        paddingHorizontal: 20,
+        paddingVertical: 11,
+        borderRadius: 12,
     },
 
     bookButtonText: {
         color: '#fff',
-        fontWeight: '600',
         fontSize: 14,
+        fontWeight: '700',
     },
 });
