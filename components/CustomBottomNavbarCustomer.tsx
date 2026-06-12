@@ -32,7 +32,7 @@ const TABS = [
         icon: 'miscellaneous-services',
         activeIcon: 'miscellaneous-services',
         type: 'material',
-        path: '/(protected)/(customer)/servexservice',
+        path: '/(protected)/(customer)/services',
     },
     {
         label: 'Requests',

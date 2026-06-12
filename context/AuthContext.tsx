@@ -15,6 +15,7 @@ export interface User {
     approvalStatus?: string | null;
     approvalRejectionReason?: string | null;
     defaultLocation?: string | null;
+    isVerified?: boolean;
     [key: string]: any;
 }
 
@@ -23,6 +24,7 @@ export interface RegisterPayload {
     fullName: string;
     password: string;
     role: 'user' | 'mistri';
+    dob?: string;
 }
 
 export interface LoginResponse {
@@ -55,14 +57,6 @@ type AuthContextData = {
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
 import { API_BASE_URL as API_URL } from '../lib/config';
-
-Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-    }),
-});
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
@@ -215,13 +209,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    // ─────────────────────────────────────────────────────────────────
-    // NEW BACKEND CONTROLLER WRAPPERS
-    // ─────────────────────────────────────────────────────────────────
-
-    // Hits router.post("/signup", register)
+    // FIXED: Register using /api/auth/register endpoint
     const register = async (payload: RegisterPayload) => {
-        const response = await fetch(`${API_URL}/api/auth/signup`, {
+        const response = await fetch(`${API_URL}/api/auth/register`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -231,9 +221,28 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!response.ok) {
             throw new Error(data.message || 'Registration failed');
         }
+
+        // Store token if returned
+        if (data.accessToken) {
+            const accessToken = data.accessToken;
+            const expiryTime = data.expiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+            setToken(accessToken);
+            tokenRef.current = accessToken;
+            setTokenExpiry(expiryTime);
+            tokenExpiryRef.current = expiryTime;
+            setUser(data.user);
+
+            await SecureStore.setItemAsync('token', accessToken);
+            await SecureStore.setItemAsync('tokenExpiry', String(expiryTime));
+            await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+
+            scheduleTokenRefresh();
+            registerPushToken(accessToken);
+        }
     };
 
-    // Hits router.post("/login", loginWithPassword)
+    // FIXED: Login endpoint
     const loginWithPassword = async (phone: string, password: string): Promise<LoginResponse> => {
         const response = await fetch(`${API_URL}/api/auth/login`, {
             method: 'POST',
@@ -243,7 +252,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         const data = await response.json();
 
-        // Handle case where account exists but is unverified (returns 403 status code)
+        // Handle case where account exists but is unverified
         if (response.status === 403 && data.isVerified === false) {
             return { isVerified: false, message: data.message };
         }
@@ -252,14 +261,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             throw new Error(data.message || 'Login failed');
         }
 
-        // Handle fully authenticated user response mapping
+        // Handle fully authenticated user response
         const accessToken = data.accessToken;
         const newRefreshToken = data.refreshToken;
-        const expiryTime = data.expiresAt || (Date.now() + 60 * 60 * 1000);
+        const expiryTime = data.expiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-        setToken(accessToken); tokenRef.current = accessToken;
-        setRefreshToken(newRefreshToken); refreshTokenRef.current = newRefreshToken;
-        setTokenExpiry(expiryTime); tokenExpiryRef.current = expiryTime;
+        setToken(accessToken);
+        tokenRef.current = accessToken;
+        setRefreshToken(newRefreshToken);
+        refreshTokenRef.current = newRefreshToken;
+        setTokenExpiry(expiryTime);
+        tokenExpiryRef.current = expiryTime;
         setUser(data.user);
 
         await SecureStore.setItemAsync('token', accessToken);
@@ -270,12 +282,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         scheduleTokenRefresh();
         registerPushToken(accessToken);
 
-        return { isVerified: true, user: data.user };
+        return { isVerified: true, user: data.user, accessToken };
     };
 
-    // Legacy fallback method for explicitly resending OTPs
     const sendOtp = async (phone: string) => {
-        const response = await fetch(`${API_URL}/api/auth/otp/send`, { // or use updated endpoint if matching custom setups
+        const response = await fetch(`${API_URL}/api/auth/otp/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone }),
@@ -305,11 +316,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const data = await response.json();
             const newToken = data.accessToken;
             const newRefreshToken = data.refreshToken || currentRefreshToken;
-            const expiryTime = data.expiresAt || (Date.now() + 60 * 60 * 1000);
+            const expiryTime = data.expiresAt || (Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-            setToken(newToken); tokenRef.current = newToken;
-            setRefreshToken(newRefreshToken); refreshTokenRef.current = newRefreshToken;
-            setTokenExpiry(expiryTime); tokenExpiryRef.current = expiryTime;
+            setToken(newToken);
+            tokenRef.current = newToken;
+            setRefreshToken(newRefreshToken);
+            refreshTokenRef.current = newRefreshToken;
+            setTokenExpiry(expiryTime);
+            tokenExpiryRef.current = expiryTime;
 
             await SecureStore.setItemAsync('token', newToken);
             await SecureStore.setItemAsync('refreshToken', newRefreshToken);
@@ -325,9 +339,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    // Hits router.post("/otp/verify", verifyOtp)
     const verifyOtp = async (phone: string, otp: string): Promise<User> => {
-        const response = await fetch(`${API_URL}/api/auth/otp/verify`, {
+        const response = await fetch(`${API_URL}/api/auth/verify-phone`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, otp }),
@@ -338,22 +351,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             throw new Error(data.message || 'Failed to verify OTP');
         }
 
-        const accessToken = data.accessToken || data.token;
-        const newRefreshToken = data.refreshToken;
-        const expiryTime = data.expiresAt || (Date.now() + 60 * 60 * 1000);
-
-        setToken(accessToken); tokenRef.current = accessToken;
-        setRefreshToken(newRefreshToken); refreshTokenRef.current = newRefreshToken;
-        setTokenExpiry(expiryTime); tokenExpiryRef.current = expiryTime;
-        setUser(data.user);
-
-        await SecureStore.setItemAsync('token', accessToken);
-        if (newRefreshToken) await SecureStore.setItemAsync('refreshToken', newRefreshToken);
-        await SecureStore.setItemAsync('tokenExpiry', String(expiryTime));
-        await SecureStore.setItemAsync('user', JSON.stringify(data.user));
-
-        scheduleTokenRefresh();
-        registerPushToken(accessToken);
+        // Update user as verified
+        if (data.user) {
+            setUser(data.user);
+            await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+        }
 
         return data.user;
     };
@@ -369,8 +371,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             body: JSON.stringify({ role }),
         });
         const data = await response.json();
-        setUser(data.user);
-        await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+        if (data.user) {
+            setUser(data.user);
+            await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+        }
     };
 
     const updateProfile = async (fullName: string, location?: string) => {
@@ -386,8 +390,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             body: JSON.stringify(body),
         });
         const data = await response.json();
-        setUser(data.user);
-        await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+        if (data.user) {
+            setUser(data.user);
+            await SecureStore.setItemAsync('user', JSON.stringify(data.user));
+        }
     };
 
     const logout = async () => {
@@ -404,13 +410,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         Authorization: `Bearer ${token}`
                     },
                 }).catch(() => { });
-            } catch (e) {}
+            } catch (e) { }
         }
 
         queryClient.clear();
-        setToken(null); tokenRef.current = null;
-        setRefreshToken(null); refreshTokenRef.current = null;
-        setTokenExpiry(null); tokenExpiryRef.current = null;
+        setToken(null);
+        tokenRef.current = null;
+        setRefreshToken(null);
+        refreshTokenRef.current = null;
+        setTokenExpiry(null);
+        tokenExpiryRef.current = null;
         setUser(null);
 
         await SecureStore.deleteItemAsync('token');
