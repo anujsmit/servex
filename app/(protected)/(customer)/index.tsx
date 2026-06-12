@@ -12,12 +12,10 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    ActivityIndicator,
     Animated,
     Dimensions,
     RefreshControl,
     TextInput,
-    Modal,
     Image,
 } from 'react-native';
 
@@ -28,7 +26,6 @@ import { useLocation } from '../../../context/LocationContext';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, Ionicons, Feather } from '@expo/vector-icons';
 import { HeroBanner } from '../../../components/HeroBanner';
-import { WebView } from 'react-native-webview';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -50,6 +47,7 @@ interface PlatformService {
     imageUrl: string | null;
     serviceId?: number;
     categoryName?: string;
+    isPopular?: boolean;
 }
 
 const CategorySkeleton = () => {
@@ -74,12 +72,12 @@ const CategorySkeleton = () => {
     return (
         <View style={styles.categoryCard}>
             <Animated.View style={[styles.skeletonIcon, { opacity }]} />
-            <Animated.View style={[styles.skeletonText, { opacity, width: '80%', marginTop: 10 }]} />
+            <Animated.View style={[styles.skeletonText, { opacity, width: 60, marginLeft: 8 }]} />
         </View>
     );
 };
 
-const PlatformServiceSkeleton = () => {
+const PopularServiceSkeleton = () => {
     const animatedValue = useRef(new Animated.Value(0.3)).current;
 
     useEffect(() => {
@@ -99,10 +97,10 @@ const PlatformServiceSkeleton = () => {
     });
 
     return (
-        <View style={styles.platformServiceCard}>
-            <Animated.View style={[styles.skeletonPlatformIcon, { opacity }]} />
-            <Animated.View style={[styles.skeletonText, { opacity, width: '60%', marginTop: 8 }]} />
-            <Animated.View style={[styles.skeletonText, { opacity, width: '40%', marginTop: 4 }]} />
+        <View style={styles.popularServiceCard}>
+            <Animated.View style={[styles.skeletonPopularImage, { opacity }]} />
+            <Animated.View style={[styles.skeletonText, { opacity, width: '70%', marginTop: 12 }]} />
+            <Animated.View style={[styles.skeletonText, { opacity, width: '40%', marginTop: 6 }]} />
         </View>
     );
 };
@@ -112,26 +110,23 @@ export default function CustomerDashboard() {
     const { address, isLoading: locationLoading, refetch: refetchLocation } = useLocation();
     const router = useRouter();
     const [categories, setCategories] = useState<ServiceCategory[]>([]);
-    const [platformServices, setPlatformServices] = useState<PlatformService[]>([]);
+    const [popularServices, setPopularServices] = useState<PlatformService[]>([]);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
-    const [platformServicesLoading, setPlatformServicesLoading] = useState(true);
+    const [popularServicesLoading, setPopularServicesLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
-    const [showVideoModal, setShowVideoModal] = useState(false);
     const [filteredCategories, setFilteredCategories] = useState<ServiceCategory[]>([]);
     const scrollViewRef = useRef<ScrollView>(null);
 
     const brandStyles = useMemo(() => ({
-        avatar: {
-            backgroundColor: B.accent,
-        },
+        avatar: { backgroundColor: B.accent },
         seeAll: { color: B.accent },
-        searchBorder: { borderColor: B.accent },
+        searchBorder: { borderColor: '#e5e7eb' },
     }), []);
 
     useEffect(() => {
         fetchCategories();
-        fetchPlatformServices();
+        fetchPopularServices();
     }, []);
 
     useEffect(() => {
@@ -148,18 +143,27 @@ export default function CustomerDashboard() {
     const fetchCategories = async () => {
         try {
             setCategoriesLoading(true);
-            const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/services`);
+            const url = `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/services`;
+            const response = await fetch(url);
             const data = await response.json();
 
             if (response.ok) {
                 let categoriesData = [];
                 if (Array.isArray(data)) categoriesData = data;
-                else if (Array.isArray(data.categories)) categoriesData = data.categories;
                 else if (Array.isArray(data.services)) categoriesData = data.services;
+                else if (Array.isArray(data.categories)) categoriesData = data.categories;
                 else if (Array.isArray(data.data)) categoriesData = data.data;
+                
+                const mappedCategories = categoriesData.map(cat => ({
+                    id: cat.id,
+                    serviceName: cat.serviceName || cat.name,
+                    description: cat.description,
+                    customIconUrl: cat.customIconUrl || cat.custom_icon_url || null,
+                    iconColor: cat.iconColor || cat.icon_color || cat.mapIconColor || '#1890ff',
+                    isActive: cat.isActive !== false,
+                }));
 
-                // Filter only active categories
-                const activeCategories = categoriesData.filter(cat => cat.isActive !== false);
+                const activeCategories = mappedCategories.filter(cat => cat.isActive);
                 setCategories(activeCategories);
                 setFilteredCategories(activeCategories);
             } else {
@@ -173,50 +177,50 @@ export default function CustomerDashboard() {
         }
     };
 
-    const fetchPlatformServices = async () => {
+    const fetchPopularServices = async () => {
         try {
-            setPlatformServicesLoading(true);
+            setPopularServicesLoading(true);
             const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/platform-services`);
             const data = await response.json();
 
-            if (response.ok) {
-                if (data.categories && Array.isArray(data.categories)) {
-                    const allServices: PlatformService[] = [];
-                    data.categories.forEach((category: any) => {
-                        if (category.services && Array.isArray(category.services)) {
-                            category.services.forEach((service: any) => {
-                                allServices.push({
-                                    id: service.id,
-                                    name: service.name,
-                                    description: service.description,
-                                    price: service.price,
-                                    imageUrl: service.imageUrl,
-                                    serviceId: category.categoryId,
-                                    categoryName: category.categoryName,
-                                });
+            if (response.ok && data.categories) {
+                const allServices: PlatformService[] = [];
+                data.categories.forEach((category: any) => {
+                    if (category.services && Array.isArray(category.services)) {
+                        category.services.forEach((service: any) => {
+                            allServices.push({
+                                id: service.id,
+                                name: service.name,
+                                description: service.description,
+                                price: service.price,
+                                imageUrl: service.imageUrl,
+                                serviceId: category.categoryId,
+                                categoryName: category.categoryName,
+                                isPopular: service.is_featured || service.isPopular || false,
                             });
-                        }
-                    });
-                    setPlatformServices(allServices.slice(0, 8));
-                } else if (data.services && Array.isArray(data.services)) {
-                    setPlatformServices(data.services.slice(0, 8));
-                } else {
-                    setPlatformServices([]);
-                }
+                        });
+                    }
+                });
+                const popular = allServices.filter(s => s.isPopular).length > 0 
+                    ? allServices.filter(s => s.isPopular).slice(0, 8)
+                    : allServices.slice(0, 8);
+                setPopularServices(popular);
+            } else if (data.services && Array.isArray(data.services)) {
+                setPopularServices(data.services.slice(0, 8));
             } else {
-                setPlatformServices([]);
+                setPopularServices([]);
             }
         } catch (error) {
-            console.log('Failed to fetch platform services:', error);
-            setPlatformServices([]);
+            console.log('Failed to fetch popular services:', error);
+            setPopularServices([]);
         } finally {
-            setPlatformServicesLoading(false);
+            setPopularServicesLoading(false);
         }
     };
 
     const refreshAllData = async () => {
         setRefreshing(true);
-        await Promise.all([fetchCategories(), fetchPlatformServices(), refetchLocation()]);
+        await Promise.all([fetchCategories(), fetchPopularServices(), refetchLocation()]);
         setRefreshing(false);
     };
 
@@ -229,7 +233,7 @@ export default function CustomerDashboard() {
     const getCategoryColor = (category: ServiceCategory, index: number) => {
         if (category.iconColor) return category.iconColor;
         if (category.mapIconColor) return category.mapIconColor;
-        const colors = ['#FF6B6B', '#4A90E2', '#4CAF50', '#FF9800', '#9C27B0', '#E91E63', '#00BCD4', '#FDD835'];
+        const colors = ['#FF6B6B', '#4A90E2', '#4CAF50', '#FF9800', '#9C27B0', '#E91E63', '#00BCD4'];
         return colors[index % colors.length];
     };
 
@@ -244,7 +248,7 @@ export default function CustomerDashboard() {
         });
     };
 
-    const openPlatformService = (service: PlatformService) => {
+    const openPopularService = (service: PlatformService) => {
         router.push({
             pathname: '/service-details/[id]',
             params: {
@@ -257,11 +261,10 @@ export default function CustomerDashboard() {
         });
     };
 
-    // 1. Search Bar
     const renderSearchBar = () => (
         <View style={styles.searchContainer}>
             <View style={[styles.searchBar, brandStyles.searchBorder]}>
-                <Feather name="search" size={20} color="#9ca3af" />
+                <Feather name="search" size={18} color="#6b7280" />
                 <TextInput
                     style={styles.searchInput}
                     placeholder="Search for services..."
@@ -271,21 +274,19 @@ export default function CustomerDashboard() {
                 />
                 {searchQuery.length > 0 && (
                     <TouchableOpacity onPress={() => setSearchQuery('')}>
-                        <Ionicons name="close-circle" size={20} color="#9ca3af" />
+                        <Ionicons name="close-circle" size={18} color="#9ca3af" />
                     </TouchableOpacity>
                 )}
             </View>
         </View>
     );
 
-    // 2. Hero Banner (Ad 1)
     const renderHeroBanner = () => (
         <View style={styles.heroWrapper}>
             <HeroBanner />
         </View>
     );
 
-    // 3. What are you looking for? - Categories with custom icons
     const renderCategories = () => (
         <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -293,124 +294,103 @@ export default function CustomerDashboard() {
             </View>
 
             {categoriesLoading && !refreshing ? (
-                <View style={styles.categoriesGrid}>
-                    {[1, 2, 3, 4, 5, 6].map((item) => <CategorySkeleton key={item} />)}
-                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesHorizontalScroll}>
+                    {[1, 2, 3, 4].map((item) => <CategorySkeleton key={item} />)}
+                </ScrollView>
             ) : filteredCategories.length === 0 ? (
                 <View style={styles.emptyState}>
-                    <MaterialIcons name="search-off" size={42} color={C.muted} />
+                    <MaterialIcons name="search-off" size={40} color={C.muted || '#9ca3af'} />
                     <Text style={styles.emptyTitle}>No categories found</Text>
                     <Text style={styles.emptySubtitle}>Try searching for something else</Text>
                 </View>
             ) : (
-                <View style={styles.categoriesGrid}>
+                <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.categoriesHorizontalScroll}
+                >
                     {filteredCategories.map((category, index) => {
                         const iconColor = getCategoryColor(category, index);
                         return (
                             <TouchableOpacity
                                 key={category.id}
-                                style={styles.categoryCard}
-                                activeOpacity={0.85}
+                                style={[styles.categoryCard, { borderColor: `${iconColor}25` }]}
+                                activeOpacity={0.7}
                                 onPress={() => openCategory(category)}
                             >
-                                <View style={[styles.categoryIconContainer, { backgroundColor: `${iconColor}20` }]}>
+                                <View style={[styles.categoryIconContainer, { backgroundColor: `${iconColor}12` }]}>
                                     {category.customIconUrl ? (
-                                        // Show custom uploaded image
                                         <Image
                                             source={{ uri: category.customIconUrl }}
-                                            style={{ width: 40, height: 40 }}
+                                            style={{ width: 22, height: 22 }}
                                             resizeMode="contain"
                                         />
                                     ) : (
-                                        // Fallback to first letter of service name
-                                        <Text style={{ fontSize: 24, fontWeight: '600', color: iconColor }}>
+                                        <Text style={{ fontSize: 14, fontWeight: '700', color: iconColor }}>
                                             {category.serviceName?.charAt(0).toUpperCase()}
                                         </Text>
                                     )}
                                 </View>
-                                <Text style={styles.categoryName} numberOfLines={2}>
+                                <Text style={styles.categoryName} numberOfLines={1}>
                                     {category.serviceName}
                                 </Text>
                             </TouchableOpacity>
                         );
                     })}
-                </View>
+                </ScrollView>
             )}
         </View>
     );
 
-    // 4. Video Banner (Ad 2)
-    const renderVideoBanner = () => (
-        <View style={styles.videoBannerContainer}>
-            <TouchableOpacity
-                style={styles.videoCard}
-                onPress={() => setShowVideoModal(true)}
-                activeOpacity={0.9}
-            >
-                <View style={styles.videoThumbnail}>
-                    <MaterialIcons name="play-circle-fill" size={60} color={B.accent} />
-                    <Text style={styles.videoTitle}>Watch Video</Text>
-                    <Text style={styles.videoSubtitle}>How ServeX Works</Text>
-                </View>
-                <View style={styles.watchButton}>
-                    <Text style={[styles.watchButtonText, { color: B.accent }]}>▶ Watch Now</Text>
-                </View>
-            </TouchableOpacity>
-        </View>
-    );
-
-    // 5. Platform Services
-    const renderPlatformServices = () => (
+    const renderPopularServices = () => (
         <View style={styles.section}>
             <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Popular Services</Text>
+                <Text style={styles.sectionTitle}>⭐ Popular Services</Text>
                 <TouchableOpacity onPress={() => router.push('/platform-services')}>
-                    <Text style={[styles.seeAllText, brandStyles.seeAll]}>View all</Text>
+                    <Text style={[styles.seeAllText, brandStyles.seeAll]}>View All</Text>
                 </TouchableOpacity>
             </View>
 
-            {platformServicesLoading && !refreshing ? (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.platformServicesScroll}
-                >
-                    {[1, 2, 3, 4].map((item) => <PlatformServiceSkeleton key={item} />)}
+            {popularServicesLoading && !refreshing ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.popularScrollContent}>
+                    {[1, 2, 3].map((item) => <PopularServiceSkeleton key={item} />)}
                 </ScrollView>
-            ) : platformServices.length === 0 ? (
-                <View style={styles.emptyPlatformContainer}>
-                    <MaterialIcons name="info-outline" size={32} color={C.muted} />
-                    <Text style={styles.emptySubtitle}>No services available</Text>
+            ) : popularServices.length === 0 ? (
+                <View style={styles.emptyPopularContainer}>
+                    <MaterialIcons name="info-outline" size={28} color={C.muted || '#9ca3af'} />
+                    <Text style={styles.emptySubtitle}>No popular services available</Text>
                 </View>
             ) : (
-                <ScrollView
-                    horizontal
+                <ScrollView 
+                    horizontal 
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.platformServicesScroll}
+                    contentContainerStyle={styles.popularScrollContent}
                 >
-                    {platformServices.map((service) => (
+                    {popularServices.map((service) => (
                         <TouchableOpacity
                             key={service.id}
-                            style={styles.platformServiceCard}
-                            activeOpacity={0.85}
-                            onPress={() => openPlatformService(service)}
+                            style={styles.popularServiceCard}
+                            activeOpacity={0.7}
+                            onPress={() => openPopularService(service)}
                         >
                             {service.imageUrl ? (
-                                <Image
-                                    source={{ uri: service.imageUrl }}
-                                    style={styles.platformServiceImage}
-                                />
+                                <Image source={{ uri: service.imageUrl }} style={styles.popularServiceImage} />
                             ) : (
-                                <View style={[styles.platformServiceIconPlaceholder, { backgroundColor: `${B.accent}15` }]}>
-                                    <MaterialIcons name="build" size={28} color={B.accent} />
+                                <View style={[styles.popularServiceIconPlaceholder, { backgroundColor: `${B.accent}10` }]}>
+                                    <MaterialIcons name="trending-up" size={24} color={B.accent} />
                                 </View>
                             )}
-                            <Text style={styles.platformServiceName} numberOfLines={1}>
-                                {service.name}
-                            </Text>
-                            <Text style={styles.platformServicePrice}>
-                                रु {parseFloat(service.price).toLocaleString()}
-                            </Text>
+                            <View style={styles.popularInfoContainer}>
+                                <Text style={styles.popularServiceName} numberOfLines={1}>
+                                    {service.name}
+                                </Text>
+                                <Text style={[styles.popularServicePrice, { color: B.accent }]}>
+                                    रु {parseFloat(service.price).toLocaleString()}
+                                </Text>
+                            </View>
+                            <View style={[styles.popularBookButton, { backgroundColor: B.accent }]}>
+                                <Text style={styles.popularBookText}>Book Now</Text>
+                            </View>
                         </TouchableOpacity>
                     ))}
                 </ScrollView>
@@ -420,18 +400,20 @@ export default function CustomerDashboard() {
 
     return (
         <SafeAreaContainer style={styles.safeRoot} showBottomNav>
-            {/* HEADER - Hello User */}
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <Text style={styles.greeting}>Hello, {user?.fullName?.split(' ')[0] || 'Customer'} 👋</Text>
-                    <Text style={styles.subtitle} numberOfLines={1}>
-                        {locationLoading ? 'Detecting location...' : address || 'Welcome back'}
-                    </Text>
+                    <View style={styles.locationContainer}>
+                        <Ionicons name="location-sharp" size={14} color={B.accent} />
+                        <Text style={styles.subtitle} numberOfLines={1}>
+                            {locationLoading ? 'Detecting location...' : address || 'Welcome back'}
+                        </Text>
+                    </View>
                 </View>
                 <TouchableOpacity
                     style={[styles.avatar, brandStyles.avatar]}
                     onPress={() => router.push('/(protected)/(customer)/settings')}
-                    activeOpacity={0.7}
+                    activeOpacity={0.8}
                 >
                     <Text style={styles.avatarText}>{user?.fullName ? getInitials(user.fullName) : 'U'}</Text>
                 </TouchableOpacity>
@@ -448,252 +430,134 @@ export default function CustomerDashboard() {
                         onRefresh={onRefresh}
                         colors={[B.accent]}
                         tintColor={B.accent}
-                        title="Pull to refresh"
-                        titleColor={B.accent}
-                        progressBackgroundColor="#ffffff"
                     />
                 }
             >
-                {/* 1. Search Bar */}
                 {renderSearchBar()}
-
-                {/* 2. Ads 1 - Hero Banner */}
                 {renderHeroBanner()}
-
-                {/* 3. What are you looking for - Categories with Custom Icons */}
                 {renderCategories()}
-
-                {/* 4. Ads 2 - Video Banner */}
-                {renderVideoBanner()}
-
-                {/* 5. Popular Services - Platform Services */}
-                {renderPlatformServices()}
+                {renderPopularServices()}
             </ScrollView>
-
-            {/* Video Modal */}
-            <Modal
-                visible={showVideoModal}
-                animationType="slide"
-                transparent={false}
-                onRequestClose={() => setShowVideoModal(false)}
-            >
-                <View style={styles.modalContainer}>
-                    <View style={styles.modalHeader}>
-                        <Text style={styles.modalTitle}>How ServeX Works</Text>
-                        <TouchableOpacity onPress={() => setShowVideoModal(false)}>
-                            <Ionicons name="close" size={28} color="#333" />
-                        </TouchableOpacity>
-                    </View>
-                    <WebView
-                        source={{ uri: 'https://www.youtube.com/embed/NGO-Wuj066g' }}
-                        style={styles.webview}
-                        javaScriptEnabled={true}
-                        domStorageEnabled={true}
-                        allowsFullscreenVideo={true}
-                    />
-                </View>
-            </Modal>
         </SafeAreaContainer>
     );
 }
 
 const styles = StyleSheet.create({
-    safeRoot: { flex: 1, backgroundColor: '#f5f7fb' },
+    safeRoot: { flex: 1, backgroundColor: '#f9fafb' },
 
-    // Header - Hello User
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingVertical: 16,
+        paddingVertical: 18,
         backgroundColor: '#fff',
         borderBottomWidth: 1,
-        borderBottomColor: '#f0f2f5',
+        borderBottomColor: '#f3f4f6',
     },
-    headerLeft: { flex: 1 },
-    greeting: { fontSize: 24, fontWeight: '700', color: '#111827', letterSpacing: -0.3 },
-    subtitle: { marginTop: 4, fontSize: 13, color: '#6b7280', letterSpacing: -0.2 },
-    avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
-    avatarText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    headerLeft: { flex: 1, paddingRight: 16 },
+    greeting: { fontSize: 22, fontWeight: '700', color: '#111827', letterSpacing: -0.5 },
+    locationContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 4 },
+    subtitle: { fontSize: 13, color: '#4b5563', fontWeight: '500', flex: 1 },
+    avatar: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+    avatarText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
     content: { flex: 1 },
-    scrollInner: { paddingBottom: 40, paddingTop: 0 },
+    scrollInner: { paddingBottom: 32 },
 
-    // 1. Search Bar
-    searchContainer: { paddingHorizontal: 16, marginTop: 12, marginBottom: 8 },
+    searchContainer: { paddingHorizontal: 16, marginTop: 16, marginBottom: 8 },
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#fff',
-        borderRadius: 14,
+        borderRadius: 16,
         paddingHorizontal: 16,
-        paddingVertical: 12,
+        height: 48,
         borderWidth: 1,
-        borderColor: '#e5e7eb',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 6,
+        elevation: 1,
         gap: 10,
     },
-    searchInput: { flex: 1, fontSize: 16, color: '#333' },
+    searchInput: { flex: 1, fontSize: 15, color: '#111827', fontWeight: '500' },
 
-    // 2. Ads 1 - Hero Banner
-    heroWrapper: { marginHorizontal: 16, marginTop: 8, marginBottom: 12 },
+    heroWrapper: { marginHorizontal: 16, marginTop: 12, marginBottom: 12 },
 
-    // 3. Sections
-    section: { marginTop: 8, paddingHorizontal: 16 },
+    section: { marginTop: 16 },
     sectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 16,
-        paddingHorizontal: 4
+        marginBottom: 14,
+        paddingHorizontal: 20
     },
-    sectionTitle: { fontSize: 20, fontWeight: '700', color: '#111827', letterSpacing: -0.3 },
+    sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827', letterSpacing: -0.3 },
     seeAllText: { fontSize: 14, fontWeight: '600' },
 
-    // Categories Grid - What are you looking for
-    categoriesGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'flex-start',
-        gap: 12,
-        paddingHorizontal: 0,
-        paddingBottom: 20
-    },
+    /* Beautiful Pill/Chip Category Styles */
+    categoriesHorizontalScroll: { paddingLeft: 20, paddingRight: 8, paddingBottom: 6, gap: 10 },
     categoryCard: {
-        width: (screenWidth - 52) / 3.2,
-        backgroundColor: '#fff',
-        borderRadius: 18,
-        paddingVertical: 18,
-        paddingHorizontal: 8,
+        flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: '#fff',
+        borderRadius: 100,
+        paddingVertical: 8,
+        paddingHorizontal: 14,
         borderWidth: 1,
-        borderColor: '#f0f2f5',
+        borderColor: '#f3f4f6',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        elevation: 2,
+        shadowOpacity: 0.03,
+        shadowRadius: 6,
+        elevation: 1,
     },
     categoryIconContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: 18,
+        width: 30,
+        height: 30,
+        borderRadius: 15,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 10
+        marginRight: 8
     },
     categoryName: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#111827',
-        textAlign: 'center',
-        letterSpacing: -0.2,
-        lineHeight: 16
-    },
-
-    // 4. Ads 2 - Video Banner
-    videoBannerContainer: { paddingHorizontal: 16, marginBottom: 20 },
-    videoCard: {
-        backgroundColor: '#fff',
-        borderRadius: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#f0f2f5',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    videoThumbnail: {
-        backgroundColor: '#f8f9fa',
-        paddingVertical: 30,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    videoTitle: { fontSize: 18, fontWeight: '700', color: '#111827', marginTop: 12 },
-    videoSubtitle: { fontSize: 13, color: '#6b7280', marginTop: 4 },
-    watchButton: { paddingVertical: 12, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#f0f2f5' },
-    watchButtonText: { fontSize: 14, fontWeight: '600' },
-
-    // 5. Platform Services - Horizontal Scroll
-    platformServicesScroll: { paddingRight: 16, gap: 12 },
-    platformServiceCard: {
-        width: 140,
-        backgroundColor: '#fff',
-        borderRadius: 16,
-        padding: 12,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#f0f2f5',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        elevation: 2,
-        marginRight: 12,
-    },
-    platformServiceImage: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        marginBottom: 8,
-    },
-    platformServiceIconPlaceholder: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 8,
-    },
-    platformServiceName: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#111827',
-        textAlign: 'center',
-        marginBottom: 4,
-    },
-    platformServicePrice: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: B.accent,
-        textAlign: 'center',
+        color: '#374151',
+        letterSpacing: -0.1
     },
 
-    // Empty States
-    emptyState: {
+    /* Popular Services Horizontal Carousel Styles */
+    popularScrollContent: { paddingLeft: 20, paddingRight: 8, paddingBottom: 12, gap: 14 },
+    popularServiceCard: {
+        width: 160,
         backgroundColor: '#fff',
         borderRadius: 24,
-        paddingVertical: 48,
+        padding: 14,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: '#f0f2f5'
+        borderColor: '#f3f4f6',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.04,
+        shadowRadius: 12,
+        elevation: 3,
     },
-    emptyPlatformContainer: {
-        padding: 20,
-        alignItems: 'center',
-        backgroundColor: '#f8f9fa',
-        borderRadius: 12,
-    },
-    emptyTitle: { marginTop: 14, fontSize: 16, fontWeight: '700', color: '#111827' },
-    emptySubtitle: { marginTop: 6, fontSize: 13, color: '#6b7280' },
+    popularServiceImage: { width: 80, height: 80, borderRadius: 22, marginBottom: 10 },
+    popularServiceIconPlaceholder: { width: 80, height: 80, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+    popularInfoContainer: { width: '100%', alignItems: 'center', marginBottom: 10 },
+    popularServiceName: { fontSize: 14, fontWeight: '600', color: '#111827', textAlign: 'center', marginBottom: 4 },
+    popularServicePrice: { fontSize: 14, fontWeight: '700', textAlign: 'center' },
+    popularBookButton: { width: '100%', paddingVertical: 8, borderRadius: 14, alignItems: 'center' },
+    popularBookText: { fontSize: 12, fontWeight: '700', color: '#fff' },
 
-    // Skeletons
-    skeletonIcon: { width: 56, height: 56, borderRadius: 18, backgroundColor: '#e5e7eb' },
-    skeletonPlatformIcon: { width: 60, height: 60, borderRadius: 30, backgroundColor: '#e5e7eb' },
+    emptyState: { backgroundColor: '#fff', borderRadius: 24, paddingVertical: 40, marginHorizontal: 20, alignItems: 'center', borderWidth: 1, borderColor: '#f3f4f6' },
+    emptyPopularContainer: { padding: 24, alignItems: 'center', backgroundColor: '#f3f4f6', borderRadius: 16, marginHorizontal: 20 },
+    emptyTitle: { marginTop: 10, fontSize: 15, fontWeight: '700', color: '#111827' },
+    emptySubtitle: { marginTop: 4, fontSize: 13, color: '#6b7280' },
+
+    skeletonIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#e5e7eb' },
+    skeletonPopularImage: { width: 80, height: 80, borderRadius: 22, backgroundColor: '#e5e7eb' },
     skeletonText: { height: 12, borderRadius: 6, backgroundColor: '#e5e7eb' },
-
-    // Modal
-    modalContainer: { flex: 1, backgroundColor: '#fff' },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f2f5'
-    },
-    modalTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-    webview: { flex: 1 },
 });
