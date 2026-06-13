@@ -134,7 +134,6 @@ export default function CustomerDashboard() {
     const [categories, setCategories] = useState<ServiceCategory[]>([]);
     const [popularServices, setPopularServices] = useState<PlatformService[]>([]);
     const [ad1Banners, setAd1Banners] = useState<Banner[]>([]);
-    const [ad2Banners, setAd2Banners] = useState<Banner[]>([]);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [popularServicesLoading, setPopularServicesLoading] = useState(true);
     const [bannersLoading, setBannersLoading] = useState(true);
@@ -187,7 +186,7 @@ export default function CustomerDashboard() {
                 else if (Array.isArray(data.services)) categoriesData = data.services;
                 else if (Array.isArray(data.categories)) categoriesData = data.categories;
                 else if (Array.isArray(data.data)) categoriesData = data.data;
-                
+
                 const mappedCategories = categoriesData.map(cat => ({
                     id: cat.id,
                     serviceName: cat.serviceName || cat.name,
@@ -235,7 +234,7 @@ export default function CustomerDashboard() {
                         });
                     }
                 });
-                const popular = allServices.filter(s => s.isPopular).length > 0 
+                const popular = allServices.filter(s => s.isPopular).length > 0
                     ? allServices.filter(s => s.isPopular).slice(0, 10)
                     : allServices.slice(0, 10);
                 setPopularServices(popular);
@@ -255,7 +254,7 @@ export default function CustomerDashboard() {
     const fetchBanners = async () => {
         try {
             setBannersLoading(true);
-            
+
             const ad1Response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/hero-banners/type/ad1`);
             const ad1Data = await ad1Response.json();
             if (ad1Data.success && ad1Data.banners && ad1Data.banners.length > 0) {
@@ -263,18 +262,9 @@ export default function CustomerDashboard() {
             } else {
                 setAd1Banners([]);
             }
-
-            const ad2Response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/hero-banners/type/ad2`);
-            const ad2Data = await ad2Response.json();
-            if (ad2Data.success && ad2Data.banners && ad2Data.banners.length > 0) {
-                setAd2Banners(ad2Data.banners);
-            } else {
-                setAd2Banners([]);
-            }
         } catch (error) {
             console.log('Failed to fetch banners:', error);
             setAd1Banners([]);
-            setAd2Banners([]);
         } finally {
             setBannersLoading(false);
         }
@@ -300,12 +290,13 @@ export default function CustomerDashboard() {
     };
 
     const openCategory = (category: ServiceCategory) => {
+        console.log('Opening category:', category.id, category.serviceName);
         router.push({
             pathname: '/category/[id]',
             params: {
                 id: category.id.toString(),
                 name: category.serviceName,
-                serviceId: category.id
+                serviceId: category.id.toString()
             },
         });
     };
@@ -375,7 +366,7 @@ export default function CustomerDashboard() {
                 <Feather name="search" size={18} color="#94a3b8" />
                 <TextInput
                     style={styles.searchInput}
-                    placeholder="Search for services (e.g. Plumber, Electricician...)"
+                    placeholder="Search for services (e.g. Plumber, Electrician...)"
                     placeholderTextColor="#94a3b8"
                     value={searchQuery}
                     onChangeText={setSearchQuery}
@@ -399,7 +390,7 @@ export default function CustomerDashboard() {
                 </View>
             );
         }
-        
+
         if (!ad1Banners || ad1Banners.length === 0) {
             // Fallback promotional banner when no API banners exist
             return (
@@ -423,81 +414,10 @@ export default function CustomerDashboard() {
                 </View>
             );
         }
-        
+
         return (
             <View style={styles.heroWrapper}>
                 <HeroBanner banners={ad1Banners} autoScroll={true} />
-            </View>
-        );
-    };
-
-    const renderAd2Banner = () => {
-        if (bannersLoading) {
-            return (
-                <View style={styles.ad2BannerContainer}>
-                    <View style={styles.ad2Skeleton}>
-                        <ActivityIndicator size="small" color={B.accent} />
-                    </View>
-                </View>
-            );
-        }
-        
-        if (!ad2Banners || ad2Banners.length === 0) {
-            // Fallback How Servex Works section
-            return (
-                <View style={styles.ad2BannerContainer}>
-                    <View style={styles.howItWorksCard}>
-                        <Text style={styles.howItWorksTitle}>How Servex Works</Text>
-                        <Text style={styles.howItWorksSubtitle}>
-                            Watch and learn how you can book trusted services in just a few steps.
-                        </Text>
-                        <TouchableOpacity 
-                            style={styles.watchVideoButton}
-                            onPress={() => handleVideoPress('https://www.youtube.com/watch?v=dQw4w9WgXcQ')}
-                        >
-                            <MaterialIcons name="play-circle-fill" size={28} color={B.accent} />
-                            <Text style={[styles.watchVideoButtonText, { color: B.accent }]}>Watch Video</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            );
-        }
-        
-        const banner = ad2Banners[0];
-        
-        return (
-            <View style={styles.ad2BannerContainer}>
-                <TouchableOpacity 
-                    style={styles.ad2Card}
-                    onPress={() => {
-                        if (banner.videoUrl) {
-                            handleVideoPress(banner.videoUrl);
-                        } else if (banner.linkUrl) {
-                            router.push(banner.linkUrl);
-                        }
-                    }}
-                    activeOpacity={0.9}
-                >
-                    {banner.videoUrl ? (
-                        <LinearGradient
-                            colors={['#f8fafc', '#f1f5f9']}
-                            style={styles.ad2VideoThumbnail}
-                        >
-                            <MaterialIcons name="play-circle-fill" size={56} color={B.accent} />
-                            <Text style={styles.ad2VideoTitle}>{banner.title || 'How Servex Works'}</Text>
-                            <Text style={styles.ad2VideoSubtitle}>{banner.subtitle || 'Watch and learn how to book trusted services'}</Text>
-                            <View style={[styles.ad2WatchButton, { borderColor: B.accent + '30' }]}>
-                                <Text style={[styles.ad2WatchButtonText, { color: B.accent }]}>Watch Video</Text>
-                            </View>
-                        </LinearGradient>
-                    ) : banner.imageUrl ? (
-                        <Image 
-                            source={{ uri: banner.imageUrl }} 
-                            style={styles.ad2Image} 
-                            resizeMode="cover" 
-                        />
-                    ) : null}
-                </TouchableOpacity>
             </View>
         );
     };
@@ -518,8 +438,8 @@ export default function CustomerDashboard() {
                     <Text style={styles.emptyTitle}>No categories found</Text>
                 </View>
             ) : (
-                <ScrollView 
-                    horizontal 
+                <ScrollView
+                    horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.categoriesHorizontalScroll}
                 >
@@ -624,7 +544,7 @@ export default function CustomerDashboard() {
     return (
         <SafeAreaContainer style={styles.safeRoot} showBottomNav>
             <StatusBar backgroundColor="#ffffff" barStyle="dark-content" />
-            
+
             <Animated.View style={[
                 styles.header,
                 {
@@ -678,7 +598,6 @@ export default function CustomerDashboard() {
                 {renderHeroBanner()}
                 {renderQuickActions()}
                 {renderCategories()}
-                {renderAd2Banner()}
                 {renderPopularServices()}
             </Animated.ScrollView>
 
@@ -690,14 +609,14 @@ export default function CustomerDashboard() {
             >
                 <View style={styles.modalContainer}>
                     <View style={styles.modalHeader}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             onPress={() => setShowVideoModal(false)}
                             style={styles.modalCloseButton}
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
                             <Ionicons name="close" size={24} color="#ffffff" />
                         </TouchableOpacity>
-                        <Text style={styles.modalTitle}>How Servex Works</Text>
+                        <Text style={styles.modalTitle}>Video</Text>
                         <View style={{ width: 40 }} />
                     </View>
                     {selectedVideoUrl && (
@@ -720,8 +639,8 @@ export default function CustomerDashboard() {
 }
 
 const styles = StyleSheet.create({
-    safeRoot: { 
-        flex: 1, 
+    safeRoot: {
+        flex: 1,
         backgroundColor: '#f8fafc',
     },
 
@@ -740,54 +659,54 @@ const styles = StyleSheet.create({
         shadowOpacity: 0,
         elevation: 0,
     },
-    headerLeft: { 
-        flex: 1, 
+    headerLeft: {
+        flex: 1,
         gap: 4,
     },
-    greeting: { 
-        fontSize: 22, 
-        fontWeight: '700', 
-        color: '#0f172a', 
+    greeting: {
+        fontSize: 22,
+        fontWeight: '700',
+        color: '#0f172a',
         letterSpacing: -0.3,
     },
-    locationContainer: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
+    locationContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 4,
     },
-    subtitle: { 
-        fontSize: 12, 
-        color: '#64748b', 
+    subtitle: {
+        fontSize: 12,
+        color: '#64748b',
         fontWeight: '500',
     },
-    avatar: { 
-        width: 42, 
-        height: 42, 
-        borderRadius: 21, 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+    avatar: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        justifyContent: 'center',
+        alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06,
         shadowRadius: 4,
         elevation: 2,
     },
-    avatarText: { 
-        color: '#fff', 
-        fontWeight: '700', 
+    avatarText: {
+        color: '#fff',
+        fontWeight: '700',
         fontSize: 15,
     },
 
-    content: { 
+    content: {
         flex: 1,
     },
-    scrollInner: { 
+    scrollInner: {
         paddingBottom: 30,
     },
 
-    searchContainer: { 
-        paddingHorizontal: 20, 
-        marginTop: 16, 
+    searchContainer: {
+        paddingHorizontal: 20,
+        marginTop: 16,
         marginBottom: 16,
     },
     searchBar: {
@@ -806,17 +725,17 @@ const styles = StyleSheet.create({
         elevation: 1,
         gap: 10,
     },
-    searchInput: { 
-        flex: 1, 
-        fontSize: 14, 
-        color: '#1e293b', 
-        fontWeight: '500', 
+    searchInput: {
+        flex: 1,
+        fontSize: 14,
+        color: '#1e293b',
+        fontWeight: '500',
         paddingVertical: 0,
     },
 
-    heroWrapper: { 
-        marginHorizontal: 20, 
-        marginTop: 8, 
+    heroWrapper: {
+        marginHorizontal: 20,
+        marginTop: 8,
         marginBottom: 20,
         borderRadius: 20,
         overflow: 'hidden',
@@ -900,7 +819,7 @@ const styles = StyleSheet.create({
         color: '#334155',
     },
 
-    section: { 
+    section: {
         marginBottom: 24,
     },
     sectionHeader: {
@@ -910,20 +829,20 @@ const styles = StyleSheet.create({
         marginBottom: 14,
         paddingHorizontal: 20,
     },
-    sectionTitle: { 
-        fontSize: 18, 
-        fontWeight: '700', 
-        color: '#0f172a', 
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#0f172a',
         letterSpacing: -0.3,
     },
-    seeAllText: { 
-        fontSize: 13, 
+    seeAllText: {
+        fontSize: 13,
         fontWeight: '600',
     },
 
-    categoriesHorizontalScroll: { 
-        paddingLeft: 20, 
-        paddingRight: 12, 
+    categoriesHorizontalScroll: {
+        paddingLeft: 20,
+        paddingRight: 12,
         gap: 12,
     },
     categoryCard: {
@@ -961,117 +880,18 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    categoryCustomIcon: { 
-        width: 22, 
+    categoryCustomIcon: {
+        width: 22,
         height: 22,
     },
-    categoryInitialText: { 
-        fontSize: 14, 
-        fontWeight: '700',
-    },
-    categoryName: { 
-        fontSize: 13, 
-        fontWeight: '600', 
-        color: '#334155',
-    },
-
-    ad2BannerContainer: { 
-        paddingHorizontal: 20, 
-        marginBottom: 24,
-    },
-    ad2Skeleton: {
-        height: 160,
-        backgroundColor: '#e2e8f0',
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    ad2Card: {
-        backgroundColor: '#ffffff',
-        borderRadius: 20,
-        overflow: 'hidden',
-        borderWidth: 1,
-        borderColor: '#f0f2f5',
-        shadowColor: '#0f172a',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.04,
-        shadowRadius: 12,
-        elevation: 2,
-    },
-    ad2VideoThumbnail: { 
-        paddingVertical: 36, 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        gap: 10,
-    },
-    ad2VideoTitle: { 
-        fontSize: 18, 
-        fontWeight: '700', 
-        color: '#0f172a',
-        marginTop: 8,
-    },
-    ad2VideoSubtitle: { 
-        fontSize: 13, 
-        color: '#64748b',
-        textAlign: 'center',
-        paddingHorizontal: 20,
-    },
-    ad2WatchButton: { 
-        paddingVertical: 10, 
-        paddingHorizontal: 24,
-        alignItems: 'center', 
-        backgroundColor: '#ffffff',
-        marginTop: 12,
-        borderRadius: 30,
-        borderWidth: 1,
-    },
-    ad2WatchButtonText: { 
-        fontSize: 14, 
-        fontWeight: '600',
-    },
-    ad2Image: { 
-        width: '100%', 
-        height: 160,
-    },
-
-    howItWorksCard: {
-        backgroundColor: '#ffffff',
-        borderRadius: 20,
-        padding: 24,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: '#f0f2f5',
-        shadowColor: '#0f172a',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.04,
-        shadowRadius: 12,
-        elevation: 2,
-    },
-    howItWorksTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#0f172a',
-        marginBottom: 8,
-    },
-    howItWorksSubtitle: {
-        fontSize: 13,
-        color: '#64748b',
-        textAlign: 'center',
-        marginBottom: 20,
-    },
-    watchVideoButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 10,
-        paddingHorizontal: 20,
-        borderRadius: 30,
-        borderWidth: 1,
-        borderColor: '#e67e2230',
-    },
-    watchVideoButtonText: {
+    categoryInitialText: {
         fontSize: 14,
+        fontWeight: '700',
+    },
+    categoryName: {
+        fontSize: 13,
         fontWeight: '600',
+        color: '#334155',
     },
 
     // Popular Services - Single Column Row Card Styles
@@ -1150,39 +970,39 @@ const styles = StyleSheet.create({
         color: '#ffffff',
     },
 
-    emptyState: { 
-        backgroundColor: '#ffffff', 
-        borderRadius: 20, 
-        paddingVertical: 32, 
-        marginHorizontal: 20, 
-        alignItems: 'center', 
-        borderWidth: 1, 
+    emptyState: {
+        backgroundColor: '#ffffff',
+        borderRadius: 20,
+        paddingVertical: 32,
+        marginHorizontal: 20,
+        alignItems: 'center',
+        borderWidth: 1,
         borderColor: '#f0f2f5',
     },
-    emptyPopularContainer: { 
-        paddingVertical: 24, 
-        alignItems: 'center', 
-        backgroundColor: '#ffffff', 
-        borderRadius: 20, 
-        marginHorizontal: 20, 
-        borderWidth: 1, 
+    emptyPopularContainer: {
+        paddingVertical: 24,
+        alignItems: 'center',
+        backgroundColor: '#ffffff',
+        borderRadius: 20,
+        marginHorizontal: 20,
+        borderWidth: 1,
         borderColor: '#f0f2f5',
     },
-    emptyTitle: { 
-        marginTop: 8, 
-        fontSize: 14, 
-        fontWeight: '500', 
+    emptyTitle: {
+        marginTop: 8,
+        fontSize: 14,
+        fontWeight: '500',
         color: '#64748b',
     },
-    emptySubtitle: { 
-        fontSize: 12, 
+    emptySubtitle: {
+        fontSize: 12,
         color: '#94a3b8',
     },
 
-    skeletonIcon: { 
-        width: 30, 
-        height: 30, 
-        borderRadius: 15, 
+    skeletonIcon: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
         backgroundColor: '#e2e8f0',
     },
     skeletonPopularImageRow: {
@@ -1191,9 +1011,9 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         backgroundColor: '#e2e8f0',
     },
-    skeletonText: { 
-        height: 10, 
-        borderRadius: 5, 
+    skeletonText: {
+        height: 10,
+        borderRadius: 5,
         backgroundColor: '#e2e8f0',
     },
     skeletonButtonRow: {
@@ -1203,40 +1023,40 @@ const styles = StyleSheet.create({
         backgroundColor: '#e2e8f0',
     },
 
-    modalContainer: { 
-        flex: 1, 
+    modalContainer: {
+        flex: 1,
         backgroundColor: '#0a0c10',
     },
-    modalHeader: { 
-        flexDirection: 'row', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         paddingHorizontal: 20,
         height: 60,
         backgroundColor: '#1a1e26',
         paddingTop: Platform.OS === 'ios' ? 10 : 0,
     },
-    modalCloseButton: { 
-        width: 40, 
-        height: 40, 
-        justifyContent: 'center', 
+    modalCloseButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
         alignItems: 'center',
         borderRadius: 20,
         backgroundColor: '#2d3340',
     },
-    modalTitle: { 
-        fontSize: 16, 
-        fontWeight: '600', 
+    modalTitle: {
+        fontSize: 16,
+        fontWeight: '600',
         color: '#ffffff',
     },
-    webview: { 
-        flex: 1, 
+    webview: {
+        flex: 1,
         backgroundColor: '#000000',
     },
-    modalLoader: { 
-        position: 'absolute', 
-        top: '50%', 
-        left: '50%', 
+    modalLoader: {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
         transform: [{ translateX: -15 }, { translateY: -15 }],
     },
 });
