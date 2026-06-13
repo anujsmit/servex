@@ -155,10 +155,11 @@ export default function ServicesScreen() {
     }
 
     return (
-        <SafeAreaContainer style={styles.safeContainer}>
+        <SafeAreaContainer style={styles.safeContainer} showBottomNav={true}>
             <ScrollView
                 style={styles.container}
                 showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.scrollInner}
                 refreshControl={
                     <RefreshControl
                         refreshing={refreshing}
@@ -206,8 +207,6 @@ export default function ServicesScreen() {
                         );
                     })
                 )}
-
-                <View style={{ height: 40 }} />
             </ScrollView>
         </SafeAreaContainer>
     );
@@ -220,6 +219,9 @@ const styles = StyleSheet.create({
     },
     container: {
         flex: 1,
+    },
+    scrollInner: {
+        paddingBottom: 110, // Creates breathing room above the floating Custom Bottom Menu
     },
     loader: {
         flex: 1,

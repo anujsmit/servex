@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Image,
+    Text,  // Make sure Text is imported
     StyleSheet,
     TouchableOpacity,
     ScrollView,
@@ -17,10 +18,8 @@ import {
     customerDashboardColors as C,
 } from '../lib/customerDashboardTokens';
 
-const H_INSET = 0;
-const CARD_HEIGHT = 200;
-const SECTION_PADDING_TOP = 0;
-const SECTION_PADDING_BOTTOM = 0;
+const CARD_HEIGHT = 180;
+const AUTO_SCROLL_INTERVAL = 5000;
 
 interface Banner {
     id: string;
@@ -28,20 +27,32 @@ interface Banner {
     title?: string;
     subtitle?: string;
     linkUrl?: string;
+    videoUrl?: string;
+    adType?: string;
 }
 
-export const HeroBanner: React.FC = () => {
+interface HeroBannerProps {
+    banners?: Banner[];
+    adType?: 'ad1' | 'ad2' | 'both';
+    autoScroll?: boolean;
+}
+
+export const HeroBanner: React.FC<HeroBannerProps> = ({ 
+    banners: propBanners, 
+    adType = 'ad1',
+    autoScroll = true 
+}) => {
     const { width: windowWidth } = useWindowDimensions();
-    const [banners, setBanners] = useState<Banner[]>([]);
+    const [internalBanners, setInternalBanners] = useState<Banner[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeIndex, setActiveIndex] = useState(0);
     const scrollViewRef = useRef<ScrollView>(null);
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const slideAnim = useRef(new Animated.Value(30)).current;
-    const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+    const banners = propBanners || internalBanners;
 
     useEffect(() => {
-        // Entrance animation
         Animated.parallel([
             Animated.timing(fadeAnim, {
                 toValue: 1,
@@ -53,46 +64,49 @@ export const HeroBanner: React.FC = () => {
                 duration: 600,
                 useNativeDriver: true,
             }),
-            Animated.spring(scaleAnim, {
-                toValue: 1,
-                friction: 8,
-                tension: 40,
-                useNativeDriver: true,
-            }),
         ]).start();
     }, []);
 
     useEffect(() => {
-        let cancelled = false;
-        const fetchBanners = async () => {
-            try {
-                const res = await fetch(`${API_BASE_URL}/api/hero-banners`);
-                if (!res.ok) throw new Error('Failed to fetch');
-                const data = await res.json();
-                if (!cancelled) setBanners(data.banners ?? []);
-            } catch {
-                // silently fall back to no banners
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
-        };
-        fetchBanners();
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+        if (!propBanners) {
+            let cancelled = false;
+            const fetchBanners = async () => {
+                try {
+                    const url = `${API_BASE_URL}/api/hero-banners/type/${adType}`;
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error('Failed to fetch');
+                    const data = await res.json();
+                    if (!cancelled && data.success && data.banners) {
+                        setInternalBanners(data.banners);
+                    }
+                } catch (error) {
+                    console.log('Failed to fetch banners:', error);
+                } finally {
+                    if (!cancelled) setLoading(false);
+                }
+            };
+            fetchBanners();
+            return () => {
+                cancelled = true;
+            };
+        } else {
+            setLoading(false);
+        }
+    }, [propBanners, adType]);
 
     useEffect(() => {
-        if (banners.length <= 1) return;
+        if (!autoScroll || banners.length <= 1) return;
+        
         const interval = setInterval(() => {
             setActiveIndex((current) => {
                 const next = (current + 1) % banners.length;
                 scrollViewRef.current?.scrollTo({ x: next * windowWidth, animated: true });
                 return next;
             });
-        }, 5000);
+        }, AUTO_SCROLL_INTERVAL);
+        
         return () => clearInterval(interval);
-    }, [banners.length, windowWidth]);
+    }, [banners.length, windowWidth, autoScroll]);
 
     const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
         const index = Math.round(event.nativeEvent.contentOffset.x / windowWidth);
@@ -104,26 +118,17 @@ export const HeroBanner: React.FC = () => {
         scrollViewRef.current?.scrollTo({ x: index * windowWidth, animated: true });
     };
 
-    const cardShellStyle = {
-        width: windowWidth,
-        height: CARD_HEIGHT,
-        borderRadius: 0,
-        overflow: 'hidden' as const,
-        backgroundColor: C.cardFill,
-    };
+    const cardWidth = windowWidth - 32;
 
     if (loading) {
         return (
             <Animated.View 
                 style={[
                     styles.section,
-                    {
-                        opacity: fadeAnim,
-                        transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
-                    }
+                    { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
                 ]}
             >
-                <View style={[styles.cardShell, cardShellStyle]}>
+                <View style={[styles.cardShell, { width: cardWidth, height: CARD_HEIGHT }]}>
                     <View style={styles.loadingInner}>
                         <ActivityIndicator size="large" color={customerBrand.accent} />
                     </View>
@@ -140,10 +145,7 @@ export const HeroBanner: React.FC = () => {
         <Animated.View 
             style={[
                 styles.section,
-                {
-                    opacity: fadeAnim,
-                    transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
-                }
+                { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
             ]}
         >
             <ScrollView
@@ -154,27 +156,33 @@ export const HeroBanner: React.FC = () => {
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
                 decelerationRate="fast"
-                style={styles.slider}
             >
-                {banners.map((banner) => (
-                    <View key={banner.id} style={[styles.slidePage, { width: windowWidth }]}>
+                {banners.map((banner, index) => (
+                    <View key={banner.id || index} style={[styles.slidePage, { width: windowWidth }]}>
                         <TouchableOpacity 
                             activeOpacity={0.95} 
                             style={styles.cardPressable}
                             onPress={() => {
                                 if (banner.linkUrl) {
-                                    // Handle navigation
                                     console.log('Navigate to:', banner.linkUrl);
                                 }
                             }}
                         >
-                            <View style={[styles.cardShell, cardShellStyle]}>
+                            <View style={[styles.cardShell, { width: cardWidth, height: CARD_HEIGHT }]}>
                                 <Image
                                     source={{ uri: banner.imageUrl }}
                                     style={styles.bannerImage}
                                     resizeMode="cover"
                                     onError={(e) => console.log('Image load error:', e.nativeEvent.error)}
                                 />
+                                {banner.title && (
+                                    <View style={styles.textOverlay}>
+                                        <Text style={styles.title}>{banner.title}</Text>
+                                        {banner.subtitle && (
+                                            <Text style={styles.subtitle}>{banner.subtitle}</Text>
+                                        )}
+                                    </View>
+                                )}
                             </View>
                         </TouchableOpacity>
                     </View>
@@ -206,19 +214,21 @@ export const HeroBanner: React.FC = () => {
 const styles = StyleSheet.create({
     section: {
         width: '100%',
-        paddingTop: SECTION_PADDING_TOP,
-        paddingBottom: SECTION_PADDING_BOTTOM,
-        backgroundColor: 'transparent',
-        marginBottom: 8,
-    },
-    slider: {
-        backgroundColor: 'transparent',
+        paddingVertical: 8,
+        alignItems: 'center',
     },
     slidePage: {
-        backgroundColor: 'transparent',
+        alignItems: 'center',
     },
     cardShell: {
+        borderRadius: 16,
+        overflow: 'hidden',
         backgroundColor: C.cardFill,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 3,
     },
     cardPressable: {
         width: '100%',
@@ -228,11 +238,32 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
     },
+    textOverlay: {
+        position: 'absolute',
+        bottom: 20,
+        left: 20,
+        right: 20,
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#fff',
+        textShadowColor: 'rgba(0,0,0,0.3)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 3,
+    },
+    subtitle: {
+        fontSize: 13,
+        color: '#fff',
+        marginTop: 4,
+        textShadowColor: 'rgba(0,0,0,0.3)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 3,
+    },
     loadingInner: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: CARD_HEIGHT,
         backgroundColor: '#f5f7fb',
     },
     pagination: {

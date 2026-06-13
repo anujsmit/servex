@@ -17,6 +17,8 @@ import {
     MaterialIcons,
 } from '@expo/vector-icons';
 
+import { customerBrand as B } from '../lib/customerDashboardTokens';
+
 const { width } = Dimensions.get('window');
 
 const TABS = [
@@ -54,9 +56,13 @@ export default function CustomBottomNavbar() {
     const router = useRouter();
     const pathname = usePathname();
 
-    const activeIndex = TABS.findIndex((tab) =>
-        pathname.startsWith(tab.path)
-    );
+    // FIXED: Strict structure matching to handle nested path groups cleanly
+    const activeIndex = TABS.findIndex((tab) => {
+        if (tab.path === '/(protected)/(customer)') {
+            return pathname === '/(protected)/(customer)' || pathname === '/(protected)/(customer)/';
+        }
+        return pathname.startsWith(tab.path);
+    });
 
     const handleNavigation = (path) => {
         if (pathname !== path) {
@@ -65,14 +71,14 @@ export default function CustomBottomNavbar() {
     };
 
     const renderIcon = (tab, isActive) => {
-        const color = isActive ? '#3b82f6' : '#94a3b8';
+        const color = isActive ? B.accent : '#94a3b8';
         const iconName = isActive ? tab.activeIcon : tab.icon;
 
         if (tab.type === 'ion') {
             return (
                 <Ionicons
                     name={iconName}
-                    size={24}
+                    size={22}
                     color={color}
                 />
             );
@@ -81,7 +87,7 @@ export default function CustomBottomNavbar() {
         return (
             <MaterialIcons
                 name={iconName}
-                size={24}
+                size={22}
                 color={color}
             />
         );
@@ -104,7 +110,7 @@ export default function CustomBottomNavbar() {
                                 <View
                                     style={[
                                         styles.iconWrapper,
-                                        isActive && styles.activeIconWrapper,
+                                        isActive && { backgroundColor: `${B.accent}10` },
                                     ]}
                                 >
                                     {renderIcon(tab, isActive)}
@@ -113,7 +119,7 @@ export default function CustomBottomNavbar() {
                                 <Text
                                     style={[
                                         styles.label,
-                                        isActive && styles.activeLabel,
+                                        isActive && { color: B.accent, fontWeight: '700' },
                                     ]}
                                 >
                                     {tab.label}
@@ -132,69 +138,49 @@ const styles = StyleSheet.create({
         position: 'absolute',
         left: 0,
         right: 0,
-        bottom: 24,
+        bottom: 20,
         alignItems: 'center',
         zIndex: 1000,
     },
-
     container: {
         width: width - 32,
-        height: 70,
+        height: 66,
         backgroundColor: '#ffffff',
         borderRadius: 24,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-around',
-        paddingHorizontal: 12,
-
+        paddingHorizontal: 8,
         shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 8,
-        },
-        shadowOpacity: 0.08,
-        shadowRadius: 24,
-
-        elevation: 10,
-
-        borderWidth: 0.5,
-        borderColor: '#e2e8f0',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.05,
+        shadowRadius: 16,
+        elevation: 6,
+        borderWidth: 1,
+        borderColor: '#f1f5f9',
     },
-
     tabButton: {
         flex: 1,
         height: '100%',
         justifyContent: 'center',
         alignItems: 'center',
     },
-
     tabContent: {
         alignItems: 'center',
         justifyContent: 'center',
     },
-
     iconWrapper: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 4,
+        marginBottom: 2,
     },
-
-    activeIconWrapper: {
-        backgroundColor: '#eff6ff',
-    },
-
     label: {
         fontSize: 11,
-        fontWeight: '500',
-        color: '#94a3b8',
-        letterSpacing: 0.3,
-    },
-
-    activeLabel: {
-        color: '#3b82f6',
         fontWeight: '600',
+        color: '#94a3b8',
+        letterSpacing: -0.1,
     },
 });
