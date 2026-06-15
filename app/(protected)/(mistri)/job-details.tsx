@@ -31,6 +31,9 @@ import {
     mistriDashboardElevation as MISTRI_ELEV,
 } from '../../../lib/mistriDashboardTokens';
 
+// Commission rate (15%)
+const COMMISSION_RATE = 0.15;
+
 // Dashed line component
 const DashedLine = ({ style }: { style?: object }) => (
     <View style={[{ flexDirection: 'row', overflow: 'hidden', marginHorizontal: -16 }, style]}>
@@ -63,7 +66,10 @@ export default function JobDetailsScreen() {
     const customerDetails = requestData?.customerDetails;
     const selectedServices = requestData?.selectedServices || [];
 
-    const totalPrice = selectedServices.reduce((sum, service) => sum + parseFloat(service.price), 0);
+    // Calculate prices
+    const subtotal = selectedServices.reduce((sum, service) => sum + parseFloat(service.price), 0);
+    const commissionAmount = subtotal * COMMISSION_RATE;
+    const totalAfterCommission = subtotal - commissionAmount;
 
     const completeJobMutation = useCompleteServiceRequest();
     const toggleUnpaidMutation = useToggleUnpaid();
@@ -364,18 +370,18 @@ export default function JobDetailsScreen() {
                         </Text>
                     </View>
 
-                    {/* Services */}
+                    {/* Services with Commission Breakdown */}
                     {selectedServices.length > 0 && (
                         <>
                             <DashedLine style={{ marginVertical: 10 }} />
                             <View style={styles.sectionBlock}>
-                                <Text style={styles.blockTitle}>Services</Text>
+                                <Text style={styles.blockTitle}>Services & Charges</Text>
                                 <View style={styles.itemsList}>
                                     {selectedServices.map((service: any) => (
                                         <View key={service.id} style={styles.itemGroup}>
                                             <View style={styles.itemRow}>
                                                 <Text style={styles.itemName} numberOfLines={1}>{service.name}</Text>
-                                                <View style={styles.itemLeader} />
+                                                <View className="flex-1" />
                                                 <Text style={styles.itemPrice}>Rs. {Number(service.price).toLocaleString()}</Text>
                                             </View>
                                             {service.description ? (
@@ -386,10 +392,30 @@ export default function JobDetailsScreen() {
                                         </View>
                                     ))}
                                 </View>
+
                                 <DashedLine style={{ marginVertical: 10 }} />
+
+                                {/* Subtotal */}
+                                <View style={styles.breakdownRow}>
+                                    <Text style={styles.breakdownLabel}>Subtotal</Text>
+                                    <Text style={styles.breakdownValue}>Rs. {subtotal.toLocaleString()}</Text>
+                                </View>
+
+                                {/* Commission Deduction */}
+                                <View style={styles.breakdownRow}>
+                                    <View style={styles.commissionLabelContainer}>
+                                        <Text style={styles.breakdownLabel}>Commission ({COMMISSION_RATE * 100}%)</Text>
+                                        <MaterialIcons name="info-outline" size={14} color="#9CA3AF" />
+                                    </View>
+                                    <Text style={styles.breakdownDeduction}>- Rs. {commissionAmount.toLocaleString()}</Text>
+                                </View>
+
+                                <DashedLine style={{ marginVertical: 8 }} />
+
+                                {/* Total After Commission */}
                                 <View style={styles.totalRowReceipt}>
-                                    <Text style={styles.totalLabel}>Total Estimate</Text>
-                                    <Text style={styles.totalPrice}>Rs. {totalPrice.toLocaleString()}</Text>
+                                    <Text style={styles.totalLabel}>Your Earnings</Text>
+                                    <Text style={styles.totalPrice}>Rs. {totalAfterCommission.toLocaleString()}</Text>
                                 </View>
                             </View>
                         </>
@@ -433,7 +459,7 @@ export default function JobDetailsScreen() {
                         </>
                     )}
 
-                    {/* Rating Received (if job is completed and customer rated) */}
+                    {/* Rating Received */}
                     {request.status === 'completed' && ratingData?.rating && (
                         <>
                             <DashedLine style={{ marginVertical: 10 }} />
@@ -458,7 +484,7 @@ export default function JobDetailsScreen() {
                     </View>
                 </View>
 
-                {/* Map Card - Outside receipt */}
+                {/* Map Card */}
                 {mapRegion && (
                     <View style={styles.mapCard}>
                         <MapView
@@ -796,13 +822,6 @@ const styles = StyleSheet.create({
         flex: 1,
         letterSpacing: 0.2,
     },
-    itemLeader: {
-        flex: 1,
-        height: 1,
-        backgroundColor: '#D1D5DB',
-        marginHorizontal: 10,
-        alignSelf: 'center',
-    },
     itemPrice: {
         fontSize: 13,
         fontWeight: '700',
@@ -816,6 +835,32 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: '#6B7280',
         lineHeight: 15,
+    },
+    breakdownRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 6,
+    },
+    breakdownLabel: {
+        fontSize: 12,
+        fontWeight: '500',
+        color: '#6B7280',
+    },
+    breakdownValue: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#111827',
+    },
+    breakdownDeduction: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#EF4444',
+    },
+    commissionLabelContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
     },
     totalRowReceipt: {
         flexDirection: 'row',
@@ -834,7 +879,7 @@ const styles = StyleSheet.create({
     totalPrice: {
         fontSize: 16,
         fontWeight: '800',
-        color: '#111827',
+        color: '#10B981',
         letterSpacing: 0.5,
     },
     timelineList: {
